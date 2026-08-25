@@ -1,0 +1,6 @@
+services:
+  sixblocks:
+    image: coworld-sixblocks:latest
+    platform: linux/amd64
+    build:
+      context: .

@@ -9,3 +9,4 @@ build/
 .ruff_cache/
 episode_output/
 coworld_manifest.json
+tmp/

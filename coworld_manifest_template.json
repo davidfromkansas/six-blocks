@@ -1,0 +1,135 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Metta-AI/coworld/main/src/coworld/coworld_manifest_schema.json",
+  "tags": ["strategy", "management", "simulation", "single-player"],
+  "game": {
+    "name": "six-blocks",
+    "description": "30 days. Six blocks. One neighborhood to keep alive. A deterministic city-management benchmark: allocate a limited budget across trash pickup, transit, parks, housing relief, and small-business support while seeded events (heat waves, floods, rent spikes) stress ~100 simulated residents.",
+    "owner": "david.lietjauw@gmail.com",
+    "runnable": {
+      "type": "game",
+      "image": "{{SIXBLOCKS_IMAGE}}",
+      "run": ["python", "-m", "sixblocks.game.server"],
+      "source_url": "https://github.com/davidfromkansas/six-blocks/tree/main/sixblocks/game"
+    },
+    "config_schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tokens", "players"],
+      "properties": {
+        "tokens": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "players": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name"],
+            "properties": { "name": { "type": "string", "minLength": 1 } }
+          }
+        },
+        "seed": { "type": "integer", "minimum": 0 },
+        "total_days": { "type": "integer", "minimum": 5, "maximum": 60, "default": 30 },
+        "budget": { "type": "number", "minimum": 50000, "maximum": 2000000, "default": 500000 },
+        "actions_per_day": { "type": "integer", "minimum": 1, "maximum": 6, "default": 3 },
+        "day_timeout_seconds": { "type": "number", "exclusiveMinimum": 0, "default": 120 },
+        "player_connect_timeout_seconds": { "type": "number", "minimum": 0, "default": 180 }
+      }
+    },
+    "results_schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["game", "seed", "score", "components", "days_simulated", "total_days"],
+      "properties": {
+        "game": { "const": "six_blocks" },
+        "seed": { "type": "integer" },
+        "score": { "type": "number", "minimum": 0, "maximum": 100 },
+        "components": {
+          "type": "object",
+          "additionalProperties": { "type": "number", "minimum": 0, "maximum": 100 }
+        },
+        "days_simulated": { "type": "integer", "minimum": 0 },
+        "total_days": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "protocols": {
+      "player": {
+        "type": "uri",
+        "value": "https://github.com/davidfromkansas/six-blocks/blob/main/docs/player_protocol.md"
+      },
+      "global": {
+        "type": "uri",
+        "value": "https://github.com/davidfromkansas/six-blocks/blob/main/docs/global_protocol.md"
+      }
+    },
+    "docs": {
+      "readme": {
+        "type": "uri",
+        "value": "https://github.com/davidfromkansas/six-blocks/blob/main/README.md"
+      },
+      "pages": [
+        {
+          "id": "simulation.md",
+          "title": "simulation.md",
+          "content": {
+            "type": "uri",
+            "value": "https://github.com/davidfromkansas/six-blocks/blob/main/docs/simulation.md"
+          }
+        },
+        {
+          "id": "scoring.md",
+          "title": "scoring.md",
+          "content": {
+            "type": "uri",
+            "value": "https://github.com/davidfromkansas/six-blocks/blob/main/docs/scoring.md"
+          }
+        }
+      ]
+    }
+  },
+  "player": [
+    {
+      "id": "balanced-baseline",
+      "name": "Balanced Baseline",
+      "type": "player",
+      "image": "{{SIXBLOCKS_IMAGE}}",
+      "run": ["python", "-m", "sixblocks.player.player"],
+      "source_url": "https://github.com/davidfromkansas/six-blocks/tree/main/sixblocks/player",
+      "description": "Scripted manager: triages emergencies (heat, trash, transit, rent, business health) then funds the worst remaining block-level need while protecting future upkeep budget."
+    }
+  ],
+  "variants": [
+    {
+      "id": "default",
+      "name": "Default 30-day season",
+      "game_config": {
+        "total_days": 30,
+        "budget": 500000,
+        "actions_per_day": 3,
+        "day_timeout_seconds": 120,
+        "player_connect_timeout_seconds": 180,
+        "players": [{ "name": "Neighborhood Manager" }]
+      },
+      "description": "The standard benchmark: 30 days, $500k, up to 3 interventions per day, seeded events."
+    }
+  ],
+  "certification": {
+    "game_config": {
+      "seed": 7,
+      "total_days": 30,
+      "budget": 500000,
+      "actions_per_day": 3,
+      "day_timeout_seconds": 120,
+      "player_connect_timeout_seconds": 180,
+      "players": [{ "name": "Balanced Baseline" }]
+    },
+    "players": [{ "player_id": "balanced-baseline" }]
+  }
+}
