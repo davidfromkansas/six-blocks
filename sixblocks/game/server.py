@@ -208,6 +208,7 @@ async def _send_global_snapshots(websocket: WebSocket) -> None:
                 await asyncio.wait_for(state.dirty.wait(), timeout=1.0)
             state.dirty.clear()
             await websocket.send_json(_global_snapshot())
+        await websocket.send_json(_global_snapshot())
 
 
 async def _drain(websocket: WebSocket) -> None:

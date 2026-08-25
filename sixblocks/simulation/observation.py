@@ -137,6 +137,7 @@ def dashboard(city: City, metrics: dict) -> dict:
     return {
         "type": "dashboard",
         "day": city.day,
+        "total_days": city.total_days,
         "days_remaining": max(0, city.total_days - city.day),
         "budget": round2(city.budget),
         "daily_upkeep": round2(city.upkeep_per_day),

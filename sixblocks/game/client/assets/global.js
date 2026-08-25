@@ -21,8 +21,9 @@
       sbRenderEvents(document.getElementById("events"), m.dashboard);
       sbRenderBlocks(document.getElementById("blocks"), m.dashboard, null);
     }
-    if (m.finished && m.frame && m.frame.results) {
-      sbRenderFinal(document.getElementById("final"), m.frame.results);
+    const results = m.results || (m.frame && m.frame.results);
+    if (m.finished && results) {
+      sbRenderFinal(document.getElementById("final"), results);
     }
   };
 })();

@@ -345,6 +345,7 @@ class Episode:
             "world": self.world(),
             "dashboard": self.dashboard(),
             "frame": self.frames[-1] if self.frames else self.frame(self.metrics(), [], "initial"),
+            "results": self.results() if self.city.finished else None,
         }
 
     def world(self) -> dict:
