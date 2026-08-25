@@ -18,18 +18,29 @@ from .util import clamp
 
 BLOCK_W = 360.0
 BLOCK_H = 260.0
-STREET_W = 92.0
-MARGIN_X = 60.0
-MARGIN_Y = 150.0
+STREET_W = 64.0
+MARGIN_X = 48.0
+MARGIN_Y = 120.0
 WORLD_W = MARGIN_X * 2 + BLOCK_W * 3 + STREET_W * 2
-WORLD_H = MARGIN_Y + BLOCK_H * 2 + STREET_W + 120.0
+WORLD_H = MARGIN_Y + BLOCK_H * 2 + STREET_W + 96.0
 
 LOT_COLS = 4
 LOT_ROWS = 2
-LOT_W = 85.0
-LOT_H = 118.0
-LOT_GAP_X = 6.0
-LOT_GAP_Y = 12.0
+
+# Lots are packed edge to edge along each street frontage: a block is a
+# continuous streetwall of party-walled buildings around a shared rear yard,
+# the way a real one is, not detached volumes sitting on lawn. Frontage is
+# divided between the row's buildings by kind; depth is fixed per row.
+LOT_DEPTH = 108.0
+REAR_YARD = BLOCK_H - LOT_DEPTH * 2  # light well / back gardens between the rows
+FRONTAGE_WEIGHT = {
+    "tower": 1.15,
+    "walkup": 1.0,
+    "brownstone": 0.82,
+    "mixed_use": 1.05,
+    "civic": 1.45,
+    "open_space": 1.0,
+}
 
 BLOCK_ORDER = ["block_a", "block_b", "block_c", "block_d", "block_e", "block_f"]
 BLOCK_GRID = {
@@ -152,12 +163,29 @@ CATEGORY_PROFILE = {
 }
 
 
-def lot_rect(block_rect: Rect, lot_index: int) -> Rect:
-    col = lot_index % LOT_COLS
-    row = lot_index // LOT_COLS
-    x = block_rect.x + 5.0 + col * (LOT_W + LOT_GAP_X)
-    y = block_rect.y + 6.0 + row * (LOT_H + LOT_GAP_Y)
-    return Rect(x, y, LOT_W, LOT_H)
+def block_lot_rects(block_rect: Rect, plan: list[tuple]) -> dict[int, Rect]:
+    """Pack a block's plan into two party-walled street frontages.
+
+    Lot indices below ``LOT_COLS`` face the north street, the rest face the south
+    street. Within a row the block width is divided between the buildings by
+    :data:`FRONTAGE_WEIGHT`, with no side gaps, so neighbours share party walls and
+    the row runs corner to corner. Purely visual: nothing in the simulation reads
+    these rectangles.
+    """
+    rects: dict[int, Rect] = {}
+    for row in range(LOT_ROWS):
+        entries = [entry for entry in plan if entry[0] // LOT_COLS == row]
+        if not entries:
+            continue
+        weights = [FRONTAGE_WEIGHT.get(entry[1], 1.0) for entry in entries]
+        total = sum(weights)
+        y = block_rect.y if row == 0 else block_rect.y + block_rect.h - LOT_DEPTH
+        cursor = block_rect.x
+        for entry, weight in zip(entries, weights, strict=True):
+            width = block_rect.w * weight / total
+            rects[entry[0]] = Rect(cursor, y, width, LOT_DEPTH)
+            cursor += width
+    return rects
 
 
 def _make_blocks() -> dict[str, Block]:
@@ -187,10 +215,11 @@ def _make_buildings(city_rng: Rng, blocks: dict[str, Block]) -> tuple[dict[str, 
     for block_id in BLOCK_ORDER:
         block = blocks[block_id]
         rng = city_rng.derive(f"buildings:{block_id}")
+        rects = block_lot_rects(block.rect, BLOCK_PLAN[block_id])
         for lot_index, kind, label, service, category in BLOCK_PLAN[block_id]:
             building_seq += 1
             building_id = f"bld_{building_seq:02d}"
-            rect = lot_rect(block.rect, lot_index)
+            rect = rects[lot_index]
             quality = clamp(rng.normal(62.0, 9.0), 30.0, 92.0)
             floors = FLOORS_BY_KIND[kind]
             if kind in ("walkup", "brownstone", "mixed_use"):
