@@ -44,6 +44,11 @@ HTTP_USER_AGENT = "citysim-game/0.1"
 # errors in one day, or after the per-day timeout, the day ends with no intervention.
 MAX_PROTOCOL_ERRORS_PER_DAY = 25
 
+# The server keeps serving (final snapshots, liveness and replay probes) for this long
+# after the episode finishes, so late spectator connections are answered instead of
+# racing the process shutdown.
+SHUTDOWN_GRACE_SECONDS = float(os.environ.get("CITYSIM_SHUTDOWN_GRACE_SECONDS", "5"))
+
 
 def read_data(uri: str) -> bytes:
     parsed = urlparse(uri)
@@ -209,6 +214,10 @@ async def _send_global_snapshots(websocket: WebSocket) -> None:
             state.dirty.clear()
             await websocket.send_json(_global_snapshot())
         await websocket.send_json(_global_snapshot())
+        # Stay connected after the episode ends so spectators keep the final view and
+        # liveness probes still get a response until the process shuts down.
+        while True:
+            await asyncio.sleep(1.0)
 
 
 async def _drain(websocket: WebSocket) -> None:
@@ -341,7 +350,7 @@ async def _finalize() -> None:
     if state.player is not None:
         with suppress(Exception):
             await state.player.send_json({"type": "final", "done": True, "results": results})
-    await asyncio.sleep(0.5)
+    await asyncio.sleep(SHUTDOWN_GRACE_SECONDS)
     server.should_exit = True
 
 
