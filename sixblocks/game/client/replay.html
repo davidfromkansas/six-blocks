@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Six Blocks — Replay</title>
+  <link rel="stylesheet" href="/client/assets/style.css" />
+  <script src="/client/assets/p5.min.js"></script>
+  <script src="/client/assets/sixblocks-render.js"></script>
+  <script src="/client/assets/dashboard.js"></script>
+</head>
+<body>
+  <div id="world"></div>
+  <div id="hud">
+    <h1>SIX BLOCKS</h1>
+    <div class="tagline">Replay — scrub through the 30 days.</div>
+    <div class="controls">
+      <button id="play" class="primary">▶ Play</button>
+      <span id="daylabel">Day 1</span>
+    </div>
+    <input id="scrub" type="range" min="0" max="0" value="0" />
+    <div id="stats" class="statgrid"></div>
+    <section><h2>Events &amp; Notes</h2><div id="events"></div></section>
+    <section><h2>Actions this day</h2><div id="actions"></div></section>
+    <div id="final"></div>
+  </div>
+  <script src="/client/assets/replay.js"></script>
+</body>
+</html>

@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Six Blocks — Manager</title>
+  <link rel="stylesheet" href="/client/assets/style.css" />
+  <script src="/client/assets/p5.min.js"></script>
+  <script src="/client/assets/sixblocks-render.js"></script>
+  <script src="/client/assets/dashboard.js"></script>
+</head>
+<body>
+  <div id="world"></div>
+  <div id="hud">
+    <h1>SIX BLOCKS</h1>
+    <div class="tagline">30 days. Six blocks. One neighborhood to keep alive.</div>
+    <div id="stats" class="statgrid"></div>
+    <section><h2>Events &amp; Alerts</h2><div id="events"></div></section>
+    <section>
+      <h2>Intervene</h2>
+      <select id="pick-action"></select>
+      <select id="pick-block"></select>
+      <div id="actionbar">
+        <button id="do-action">Fund it</button>
+        <button id="do-inspect">Inspect block</button>
+        <button id="end-day" class="primary">End Day →</button>
+      </div>
+    </section>
+    <section><h2>Blocks</h2><div id="blocks"></div></section>
+    <section><h2>Inspector</h2><div id="inspector">Click a block or use Inspect.</div></section>
+    <section><h2>Log</h2><div id="log"></div></section>
+    <div id="final"></div>
+  </div>
+  <script src="/client/assets/player.js"></script>
+</body>
+</html>
