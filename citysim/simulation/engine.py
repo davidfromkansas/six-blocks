@@ -416,6 +416,7 @@ class Episode:
             "days_simulated": len(city.daily_metrics),
             "total_days": city.total_days,
             "score": score["final_score"],
+            "scores": [score["final_score"]],
             "components": score["components"],
             "weights": score["weights"],
             "headline": score["headline"],

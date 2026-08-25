@@ -46,11 +46,17 @@
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
       "additionalProperties": true,
-      "required": ["game", "seed", "score", "components", "days_simulated", "total_days"],
+      "required": ["game", "seed", "score", "scores", "components", "days_simulated", "total_days"],
       "properties": {
         "game": { "const": "citysim" },
         "seed": { "type": "integer" },
         "score": { "type": "number", "minimum": 0, "maximum": 100 },
+        "scores": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "items": { "type": "number", "minimum": 0, "maximum": 100 }
+        },
         "components": {
           "type": "object",
           "additionalProperties": { "type": "number", "minimum": 0, "maximum": 100 }
