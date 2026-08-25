@@ -57,6 +57,8 @@ const SB = {
 
 const WALL_H = 13;      // world units of height per building floor
 const SLAB_D = 46;      // dirt slab depth (screen units before scale)
+const AVATAR_H = 9.0;   // world units tall — a person against a 13-unit storey
+const AVATAR_MIN_SCALE = 1.1;  // below this the sprite is smaller than its own pixels
 
 function shade(rgb, f) {
   return [rgb[0] * f, rgb[1] * f, rgb[2] * f];
@@ -93,6 +95,15 @@ class CitySimRenderer {
         c.parent(containerId);
         p.frameRate(30);
         p.textFont("Georgia");
+        // Baked Pirate Nation avatars (CC0). Async: the walkers fall back to the
+        // simple marker until it lands, and if it never does.
+        p.loadImage("/client/assets/generated/avatars.png",
+          (img) => { self.avatarImg = img; },
+          () => { self.avatarImg = null; });
+        fetch("/client/assets/generated/avatars.json")
+          .then((r) => (r.ok ? r.json() : null))
+          .then((meta) => { self.avatarMeta = meta; })
+          .catch(() => { self.avatarMeta = null; });
       };
       p.windowResized = function () {
         const el = document.getElementById(containerId);
@@ -276,6 +287,7 @@ class CitySimRenderer {
         phase: rng() * Math.PI * 2, speed: 0.35 + rng() * 0.5,
         hue: Math.floor(rng() * 360), range: 40 + rng() * 140,
         bubble: rng() < 0.22, bubblePhase: rng() * 40,
+        axis: rng() < 0.34 ? 1 : 0,   // 0 = along x, 1 = along y
       };
     });
     const vr = sbRng(sbHash("vehicles:" + w.seed));
@@ -892,13 +904,18 @@ class CitySimRenderer {
     if (!this.frame) return;
     this.walkers.forEach((wk) => {
       const t = this.time * wk.speed + wk.phase;
-      const x = wk.px + Math.sin(t) * wk.range * 0.5;
-      const y = wk.py + Math.sin(t * 0.63) * 2;
-      items.push({ d: x + y, f: () => this.drawWalker(wk, x, y) });
+      const swing = Math.sin(t) * wk.range * 0.5;
+      const drift = Math.sin(t * 0.63) * 2;
+      const x = wk.px + (wk.axis ? drift : swing);
+      const y = wk.py + (wk.axis ? swing * 0.45 : drift);
+      // Heading for the sprite: which way along the street they are facing.
+      const forward = Math.cos(t) >= 0;
+      const heading = wk.axis ? (forward ? 1 : 3) : (forward ? 0 : 2);
+      items.push({ d: x + y, f: () => this.drawWalker(wk, x, y, heading) });
     });
   }
 
-  drawWalker(wk, x, y) {
+  drawWalker(wk, x, y, heading) {
     const p = this.p;
     const row = this.blockRow[wk.block_id] || {};
     const mood = row.average_mood == null ? 60 : row.average_mood;
@@ -909,6 +926,24 @@ class CitySimRenderer {
     const S = this.iso(x, y, 1.55);
     p.fill(40, 40, 50, 60);
     p.ellipse(S[0], S[1], 3.6 * this.scale, 1.8 * this.scale);
+
+    // A baked avatar is ~1.5k triangles; at the wide framing it would be three
+    // pixels of mush and a hundred needless blits, so it only appears once the
+    // camera is close enough for it to read.
+    const meta = this.avatarMeta;
+    if (this.avatarImg && meta && this.scale > AVATAR_MIN_SCALE) {
+      const [tw, th] = meta.tile;
+      const variant = sbHash("av:" + wk.id) % meta.variants;
+      const frame = Math.floor(this.time * wk.speed * 6 + wk.phase * 3) % meta.frames;
+      const sx = (frame * meta.headings + (heading || 0)) * tw;
+      const sy = variant * th;
+      const dh = AVATAR_H * this.scale;
+      const dw = dh * (tw / th);
+      p.image(this.avatarImg, B[0] - dw / 2, B[1] - dh, dw, dh, sx, sy, tw, th);
+      this.drawWalkerMood(wk, B, mood);
+      return;
+    }
+
     p.colorMode(p.HSB, 360, 100, 100);
     p.fill(wk.hue, 52, 82);
     p.ellipse(B[0], B[1] - 1.6 * this.scale, 3 * this.scale, 3.8 * this.scale); // body
@@ -920,7 +955,13 @@ class CitySimRenderer {
       p.circle(B[0] - 1.4 * this.scale, B[1], 1.6 * this.scale);
       p.circle(B[0] + 1.4 * this.scale, B[1], 1.6 * this.scale);
     }
-    // Occasional thought bubbles: sad cloud when unhappy, coin when thriving.
+    this.drawWalkerMood(wk, B, mood);
+  }
+
+  /* Thought bubbles: the resident's own read on how the neighborhood is going. */
+  drawWalkerMood(wk, B, mood) {
+    const p = this.p;
+    p.noStroke();
     const cycle = (this.time + wk.bubblePhase) % 14;
     if (wk.bubble && cycle < 2.4) {
       const bx = B[0] + 3 * this.scale, by = B[1] - 8.5 * this.scale;

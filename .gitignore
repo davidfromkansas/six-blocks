@@ -10,3 +10,9 @@ build/
 episode_output/
 coworld_manifest.json
 tmp/
+
+# Baked Pirate Nation avatar atlas (tools/bake_avatars.py). Kept out of git while
+# we decide whether a binary sprite sheet belongs in the Coworld image; the
+# renderer falls back to the simple resident marker when it is absent.
+citysim/game/client/assets/generated/avatars.png
+citysim/game/client/assets/generated/avatars.json
