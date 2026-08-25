@@ -77,6 +77,12 @@ class CitySimRenderer {
     this.ox = 0;
     this.oy = 0;
     this.hovered = null;
+    // Camera: zoom 1 frames the whole neighborhood; panning is in screen pixels.
+    this.zoom = 1;
+    this.panX = 0;
+    this.panY = 0;
+    this.dragging = false;
+    this.maxZ = 120;
 
     const self = this;
     this.p5 = new p5(function (p) {
@@ -94,9 +100,30 @@ class CitySimRenderer {
       };
       p.keyPressed = function () {
         if (p.key === "d" || p.key === "D") self.debug = !self.debug;
+        if (p.key === "f" || p.key === "F" || p.key === "0") self.resetCamera();
+        if (p.key === "+" || p.key === "=") self.zoomBy(1.25, p.width / 2, p.height / 2);
+        if (p.key === "-" || p.key === "_") self.zoomBy(1 / 1.25, p.width / 2, p.height / 2);
       };
       p.draw = function () { self.drawAll(); };
       p.mouseMoved = function () { self.pickHover(); };
+      p.mouseWheel = function (event) {
+        const ax = event.offsetX == null ? p.mouseX : event.offsetX;
+        const ay = event.offsetY == null ? p.mouseY : event.offsetY;
+        if (ax < 0 || ax > p.width || ay < 0 || ay > p.height) return;
+        self.zoomBy(Math.pow(0.999, event.delta), ax, ay);
+        return false;  // don't scroll the page under the diorama
+      };
+      p.mousePressed = function () {
+        if (self.overCanvas()) { self.dragging = true; self.dragFrom = [p.mouseX, p.mouseY]; }
+      };
+      p.mouseDragged = function () {
+        if (!self.dragging) return;
+        self.panX += p.mouseX - self.dragFrom[0];
+        self.panY += p.mouseY - self.dragFrom[1];
+        self.dragFrom = [p.mouseX, p.mouseY];
+        self.clampPan();
+      };
+      p.mouseReleased = function () { self.dragging = false; };
     });
   }
 
@@ -107,6 +134,13 @@ class CitySimRenderer {
     this.byId = {};
     world.blocks.forEach((b) => (this.byId[b.id] = b));
     world.buildings.forEach((b) => (this.byId[b.id] = b));
+    // Tallest roof plus room for cornice, water tank and flagpole.
+    let top = 60;
+    world.buildings.forEach((b) => {
+      const z = 1.6 + Math.max(2, b.floors) * WALL_H * (0.8 + (b.quality / 100) * 0.2);
+      if (z > top) top = z;
+    });
+    this.maxZ = top + 26;
     this.seedWalkersAndVehicles();
   }
 
@@ -134,18 +168,69 @@ class CitySimRenderer {
     return [(b + a) / 2, (b - a) / 2];
   }
 
-  fitProjection() {
+  overCanvas() {
+    const p = this.p;
+    return p.mouseX >= 0 && p.mouseX <= p.width && p.mouseY >= 0 && p.mouseY <= p.height;
+  }
+
+  resetCamera() { this.zoom = 1; this.panX = 0; this.panY = 0; }
+
+  /* Zoom about a screen point, so the world under the cursor stays put. */
+  zoomBy(factor, sx, sy) {
+    const before = this.unproject(sx, sy);
+    this.zoom = Math.max(1, Math.min(8, this.zoom * factor));
+    this.fitProjection();
+    const after = this.unproject(sx, sy);
+    // Re-anchor: shift the pan by the screen delta of the world point.
+    const A = this.iso(before[0], before[1], 0);
+    const B = this.iso(after[0], after[1], 0);
+    this.panX += B[0] - A[0];
+    this.panY += B[1] - A[1];
+    this.clampPan();
+    this.fitProjection();
+  }
+
+  /* Screen-space extent of the whole diorama, and the zoom-1 fit scale. */
+  projectionBounds() {
     const p = this.p, w = this.world;
-    const maxZ = 108;
+    // Vertical headroom comes from the tallest thing actually in the world; a
+    // constant silently clips towers whenever floor height changes.
     const cxMin = (0 - w.height) * 0.92, cxMax = (w.width - 0) * 0.92;
-    const cyMin = -maxZ, cyMax = (w.width + w.height) * 0.46 + SLAB_D + 26;
+    const cyMin = -this.maxZ, cyMax = (w.width + w.height) * 0.46 + SLAB_D + 26;
     const pad = 18;
-    this.scale = Math.min(
+    const base = Math.min(
       p.width / (cxMax - cxMin + pad * 2),
       p.height / (cyMax - cyMin + pad * 2)
     );
-    this.ox = p.width / 2 - ((cxMin + cxMax) / 2) * this.scale;
-    this.oy = p.height / 2 - ((cyMin + cyMax) / 2) * this.scale;
+    return { cxMin, cxMax, cyMin, cyMax, base };
+  }
+
+  /* Map-style clamp: the viewport may not leave the diorama. Panning is locked
+   * at zoom 1 (everything already fits) and opens up as you zoom in, so the city
+   * can never be pushed off screen into blank paper. */
+  clampPan() {
+    const p = this.p, w = this.world;
+    const b = this.projectionBounds();
+    const scale = b.base * this.zoom;
+    // Clamp against the ground slab, not the full fit box: the fit reserves tall
+    // vertical headroom so towers do not clip, and reusing it here would let the
+    // viewer pan up into an empty band of sky.
+    const cityW = (b.cxMax - b.cxMin) * scale;
+    const cityH = ((w.width + w.height) * 0.46 + SLAB_D) * scale;
+    const slack = 40;
+    const limX = Math.max(0, (cityW - p.width) / 2 + slack);
+    const limY = Math.max(0, (cityH - p.height) / 2 + slack);
+    const biasY = ((b.cyMin + b.cyMax) / 2 - ((w.width + w.height) * 0.46 + SLAB_D) / 2) * scale;
+    this.panX = Math.max(-limX, Math.min(limX, this.panX));
+    this.panY = Math.max(-limY + biasY, Math.min(limY + biasY, this.panY));
+  }
+
+  fitProjection() {
+    const p = this.p;
+    const b = this.projectionBounds();
+    this.scale = b.base * this.zoom;
+    this.ox = p.width / 2 - ((b.cxMin + b.cxMax) / 2) * this.scale + this.panX;
+    this.oy = p.height / 2 - ((b.cyMin + b.cyMax) / 2) * this.scale + this.panY;
   }
 
   /* Fill a quad given four world-space [x,y,z] corners. */
@@ -235,6 +320,7 @@ class CitySimRenderer {
     this.drawSkyTint();
     this.drawHover();
     w.blocks.forEach((b) => this.drawBlockLabel(b));
+    this.drawCameraHint();
     if (this.debug) this.drawDebug();
   }
 
@@ -908,6 +994,25 @@ class CitySimRenderer {
   }
 
   /* ----- atmosphere / labels / debug ------------------------------------ */
+
+  /* Discoverability: the camera is useless if nobody knows it moves. Fades out
+   * once the viewer has actually zoomed. */
+  drawCameraHint() {
+    const p = this.p;
+    p.push();
+    p.noStroke();
+    p.textFont("Georgia");
+    p.textSize(11);
+    p.textAlign(p.LEFT, p.BOTTOM);
+    if (this.zoom > 1.02) {
+      p.fill(70, 66, 60, 150);
+      p.text("zoom " + this.zoom.toFixed(1) + "\u00d7  \u00b7  f to reset", 14, p.height - 12);
+    } else {
+      p.fill(70, 66, 60, 120);
+      p.text("scroll to zoom  \u00b7  drag to pan  \u00b7  d for debug", 14, p.height - 12);
+    }
+    p.pop();
+  }
 
   drawSkyTint() {
     const p = this.p;

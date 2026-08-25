@@ -138,6 +138,10 @@ coworld upload-coworld <manifest.json>  # requires `softmax login` auth
   facades, arched window bays, storefront band, cornice, water tanks, fire escapes).
 - All per-building/per-block variation must be seeded via `sbHash`/`sbRng` with a
   stable key (e.g. `"bld:" + b.id`) so every client renders the same scene.
+- Camera: scroll to zoom (1x fits the neighborhood, 8x max), drag to pan, `f`/`0` to
+  reset, `+`/`-` to step. Zoom anchors on the cursor and panning is clamped to the
+  ground slab, so the city can never be pushed off screen. Picking shares the
+  projection via `unproject`, so hover keeps working at any zoom.
 - Press `d` in any view for the debug overlay (FPS, footprints, walker paths).
 - Verify with `node -c citysim/game/client/assets/citysim-render.js` plus a browser
   check of all three views before opening a PR.
