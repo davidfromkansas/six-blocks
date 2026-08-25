@@ -231,6 +231,7 @@ class CitySimRenderer {
     items.forEach((it) => it.f());
 
     this.drawSkyTint();
+    this.drawHover();
     w.blocks.forEach((b) => this.drawBlockLabel(b));
     if (this.debug) this.drawDebug();
   }
@@ -866,8 +867,32 @@ class CitySimRenderer {
     p.pop();
   }
 
+  /* Glowing footprint outline + name tag for the hovered block/building. */
+  drawHover() {
+    if (!this.hovered) return;
+    const p = this.p;
+    const r = this.hovered.obj.rect;
+    const pulse = 170 + Math.sin(this.time * 4) * 60;
+    const A = this.iso(r.x, r.y, 1.2), B = this.iso(r.x + r.w, r.y, 1.2);
+    const C = this.iso(r.x + r.w, r.y + r.h, 1.2), D = this.iso(r.x, r.y + r.h, 1.2);
+    p.noFill();
+    p.stroke(255, 214, 90, pulse);
+    p.strokeWeight(Math.max(1.5, this.scale * 1.6));
+    p.quad(A[0], A[1], B[0], B[1], C[0], C[1], D[0], D[1]);
+    p.noStroke();
+    const name = this.hovered.obj.name || this.hovered.obj.id;
+    const T = this.iso(r.x + r.w / 2, r.y, 0);
+    p.textSize(Math.max(10, 5 * this.scale));
+    p.textAlign(p.CENTER, p.BOTTOM);
+    const tw = p.textWidth(name) + 10;
+    p.fill(34, 32, 30, 225);
+    p.rect(T[0] - tw / 2, T[1] - 20 - Math.max(12, 6 * this.scale), tw, Math.max(14, 7 * this.scale), 4);
+    p.fill(255, 240, 210);
+    p.text(name, T[0], T[1] - 18);
+  }
+
   pickHover() {
-    if (!this.world || !this.opts.onHover) return;
+    if (!this.world) return;
     const p = this.p;
     const [mx, my] = this.unproject(p.mouseX, p.mouseY);
     let hit = null;
@@ -885,7 +910,7 @@ class CitySimRenderer {
     }
     if ((hit && hit.obj.id) !== (this.hovered && this.hovered.obj.id)) {
       this.hovered = hit;
-      this.opts.onHover(hit);
+      if (this.opts.onHover) this.opts.onHover(hit);
     }
   }
 }

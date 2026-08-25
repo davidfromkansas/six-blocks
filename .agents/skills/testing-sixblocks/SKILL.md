@@ -23,4 +23,6 @@ description: How to run and end-to-end test the CitySim Coworld game server, bro
 - Debug overlay: click the canvas first to give it focus, then press `d` (toggles FPS/IDs/bounds).
 - Selecting from the block/action `<select>` dropdowns can leave a native popup open that swallows subsequent clicks; press Escape before clicking End Day repeatedly.
 - Hovering the canvas over a block silently changes the block `<select>` (hover-inspect) — pick the block in the dropdown last, right before clicking Fund/Inspect.
+- When restarting the server, run `pkill -f citysim.game.server` in its own exec call; chaining pkill with the new server start in one command can kill the whole shell before the new server launches.
+- Window resize testing: use `wmctrl -r :ACTIVE: -b remove,maximized_vert,maximized_horz && wmctrl -r :ACTIVE: -e 0,50,50,700,600` to shrink, then re-add maximized flags to restore.
 - Known display quirks to watch: live dashboards may show "Day X / undefined" if the dashboard payload lacks `total_days`; the spectator may miss the final-score snapshot because `_send_global_snapshots` exits its loop when `state.done` is set before sending the final state.
