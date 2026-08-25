@@ -1,0 +1,12 @@
+{
+  "source": "https://github.com/proofofplay/piratenation-art (CC0 1.0)",
+  "animation": "04_Walk",
+  "tile": [
+    34,
+    46
+  ],
+  "variants": 6,
+  "frames": 4,
+  "headings": 4,
+  "order": "row = variant, col = frame * headings + heading"
+}
