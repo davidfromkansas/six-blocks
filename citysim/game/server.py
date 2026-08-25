@@ -1,4 +1,4 @@
-"""Six Blocks game container.
+"""CitySim game container.
 
 Implements the Coworld game role contract (see coworld docs/roles/GAME.md):
   GET  /healthz             liveness
@@ -33,12 +33,12 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
-from sixblocks.simulation.engine import Episode
+from citysim.simulation.engine import Episode
 
 CLIENT_DIR = Path(__file__).parent / "client"
 GAME_HOST = os.environ.get("COGAME_HOST", "0.0.0.0")
 GAME_PORT = int(os.environ.get("COGAME_PORT", "8080"))
-HTTP_USER_AGENT = "sixblocks-game/0.1"
+HTTP_USER_AGENT = "citysim-game/0.1"
 
 # A stalled or hostile player can never hang the episode: after this many protocol
 # errors in one day, or after the per-day timeout, the day ends with no intervention.

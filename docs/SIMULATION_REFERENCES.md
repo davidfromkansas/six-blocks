@@ -1,6 +1,6 @@
 # Simulation References
 
-Six Blocks is a game, not a forecasting model — but its causal structure is grounded
+CitySim is a game, not a forecasting model — but its causal structure is grounded
 in public research and city data so the trade-offs feel real.
 
 ## Reference sources
@@ -21,7 +21,7 @@ in public research and city data so the trade-offs feel real.
 - Small business survival studies (SBS/JPMC Institute) — qualitative basis for
   storefront sensitivity to foot traffic and local disposable income.
 
-## How Six Blocks represents them
+## How CitySim represents them
 
 - **Rent burden** = rent ÷ income per household, with mood/displacement pressure
   rising steeply past qualitative burden thresholds.
@@ -35,7 +35,7 @@ in public research and city data so the trade-offs feel real.
 - **Business health** follows local spending power and foot traffic, with grants as
   a short-term bridge.
 
-## What Six Blocks deliberately omits
+## What CitySim deliberately omits
 
 - Real dollar calibration (costs/rents are game-scaled, not budget-accurate).
 - Crime modeling (only "perceived safety" as a service-level abstraction).

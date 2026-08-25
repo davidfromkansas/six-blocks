@@ -1,8 +1,8 @@
-# Six Blocks
+# CitySim
 
 **30 days. Six blocks. One neighborhood to keep alive.**
 
-Six Blocks is a Coworld benchmark for AI agents. You are the manager of a fictional,
+CitySim is a Coworld benchmark for AI agents. You are the manager of a fictional,
 NYC-inspired six-block neighborhood of about 100 residents. You have thirty simulated
 days, a $500,000 budget, and up to three interventions per day. Residents commute, pay
 rent, get sick, open and lose businesses, and react to everything you do — and to the
@@ -51,10 +51,10 @@ trajectory, score, and replay.
 
 ## Repository layout
 
-- `sixblocks/simulation/` — deterministic simulation core (pure Python, no I/O)
-- `sixblocks/game/` — Coworld game container (FastAPI + WebSockets + p5.js clients)
-- `sixblocks/player/` — baseline scripted player container
-- `sixblocks/policies/` — scripted strategies incl. `balanced_baseline`
+- `citysim/simulation/` — deterministic simulation core (pure Python, no I/O)
+- `citysim/game/` — Coworld game container (FastAPI + WebSockets + p5.js clients)
+- `citysim/player/` — baseline scripted player container
+- `citysim/policies/` — scripted strategies incl. `balanced_baseline`
 - `tools/benchmark.py` — strategy comparison over many seeds
 - `tools/generate_assets.mjs` — deterministic procedural asset generation
 
@@ -72,9 +72,9 @@ npm run generate-assets
 COGAME_CONFIG_URI=file:///tmp/sb/config.json \
 COGAME_RESULTS_URI=file:///tmp/sb/results.json \
 COGAME_SAVE_REPLAY_URI=file:///tmp/sb/replay.json \
-python -m sixblocks.game.server &
+python -m citysim.game.server &
 COWORLD_PLAYER_WS_URL='ws://localhost:8080/player?slot=0&token=<token>' \
-python -m sixblocks.player.player
+python -m citysim.player.player
 ```
 
 Browser play: open `http://localhost:8080/client/player?slot=0&token=<token>`
@@ -95,4 +95,4 @@ uv run coworld run-episode <manifest-or-id>
 Connect a WebSocket to `COWORLD_PLAYER_WS_URL`, read the `welcome` and daily
 `dashboard` messages, send `inspect` / `action` / `end_day` JSON messages. Full
 protocol with examples: [docs/player_protocol.md](docs/player_protocol.md). The
-baseline in `sixblocks/player/player.py` is a complete working example.
+baseline in `citysim/player/player.py` is a complete working example.

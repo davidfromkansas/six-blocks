@@ -5,6 +5,6 @@ RUN pip install --no-cache-dir fastapi==0.115.5 "uvicorn[standard]==0.34.2" webs
 ENV PYTHONPATH=/app
 WORKDIR /app
 
-COPY sixblocks /app/sixblocks
+COPY citysim /app/citysim
 
-CMD ["python", "-m", "sixblocks.game.server"]
+CMD ["python", "-m", "citysim.game.server"]

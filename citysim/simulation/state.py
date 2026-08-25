@@ -1,7 +1,7 @@
 """Canonical simulation state.
 
 These dataclasses *are* the neighborhood. The renderer, the observation builder and the
-scorer all read from them; nothing outside :mod:`sixblocks.simulation` may mutate them.
+scorer all read from them; nothing outside :mod:`citysim.simulation` may mutate them.
 """
 
 from __future__ import annotations

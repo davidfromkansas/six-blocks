@@ -2,14 +2,14 @@
   "$schema": "https://raw.githubusercontent.com/Metta-AI/coworld/main/src/coworld/coworld_manifest_schema.json",
   "tags": ["strategy", "management", "simulation", "single-player"],
   "game": {
-    "name": "six-blocks",
+    "name": "citysim",
     "description": "30 days. Six blocks. One neighborhood to keep alive. A deterministic city-management benchmark: allocate a limited budget across trash pickup, transit, parks, housing relief, and small-business support while seeded events (heat waves, floods, rent spikes) stress ~100 simulated residents.",
     "owner": "david.lietjauw@gmail.com",
     "runnable": {
       "type": "game",
-      "image": "{{SIXBLOCKS_IMAGE}}",
-      "run": ["python", "-m", "sixblocks.game.server"],
-      "source_url": "https://github.com/davidfromkansas/six-blocks/tree/main/sixblocks/game"
+      "image": "{{CITYSIM_IMAGE}}",
+      "run": ["python", "-m", "citysim.game.server"],
+      "source_url": "https://github.com/davidfromkansas/six-blocks/tree/main/citysim/game"
     },
     "config_schema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -48,7 +48,7 @@
       "additionalProperties": true,
       "required": ["game", "seed", "score", "components", "days_simulated", "total_days"],
       "properties": {
-        "game": { "const": "six_blocks" },
+        "game": { "const": "citysim" },
         "seed": { "type": "integer" },
         "score": { "type": "number", "minimum": 0, "maximum": 100 },
         "components": {
@@ -99,9 +99,9 @@
       "id": "balanced-baseline",
       "name": "Balanced Baseline",
       "type": "player",
-      "image": "{{SIXBLOCKS_IMAGE}}",
-      "run": ["python", "-m", "sixblocks.player.player"],
-      "source_url": "https://github.com/davidfromkansas/six-blocks/tree/main/sixblocks/player",
+      "image": "{{CITYSIM_IMAGE}}",
+      "run": ["python", "-m", "citysim.player.player"],
+      "source_url": "https://github.com/davidfromkansas/six-blocks/tree/main/citysim/player",
       "description": "Scripted manager: triages emergencies (heat, trash, transit, rent, business health) then funds the worst remaining block-level need while protecting future upkeep budget."
     }
   ],

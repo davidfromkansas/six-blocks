@@ -1,4 +1,4 @@
-# Six Blocks — Scoring
+# CitySim — Scoring
 
 One number, 0–100, built from nine dimensions. It rewards *how the neighborhood
 actually did*, not how much you spent.

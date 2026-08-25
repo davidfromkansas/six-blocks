@@ -4,7 +4,7 @@
 (function () {
   const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
   const ws = new WebSocket(proto + "//" + window.location.host + "/global");
-  const renderer = new SixBlocksRenderer("world", {});
+  const renderer = new CitySimRenderer("world", {});
   let haveWorld = false;
 
   ws.onmessage = function (msg) {

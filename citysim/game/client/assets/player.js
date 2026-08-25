@@ -21,7 +21,7 @@
   let welcome = null;
   let lastDashboard = null;
 
-  const renderer = new SixBlocksRenderer("world", {
+  const renderer = new CitySimRenderer("world", {
     onHover: function (hit) {
       if (hit && hit.kind === "block") inspectBlock(hit.obj.id, true);
     },

@@ -1,4 +1,4 @@
-# Six Blocks — Global (Spectator) Protocol
+# CitySim — Global (Spectator) Protocol
 
 Read-only WebSocket at `/global`. No authentication.
 
@@ -29,7 +29,7 @@ renders these snapshots with the same p5.js renderer used for live play and repl
 `COGAME_LOAD_REPLAY_URI`. On connect it sends the full saved replay:
 
 ```json
-{"type": "replay", "format": "six_blocks_replay", "version": 1,
+{"type": "replay", "format": "citysim_replay", "version": 1,
  "seed": 7, "world": {...}, "frames": [...30 daily frames...], "results": {...}}
 ```
 

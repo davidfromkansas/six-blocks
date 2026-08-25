@@ -1,7 +1,7 @@
-/* Deterministic procedural asset generation for Six Blocks.
+/* Deterministic procedural asset generation for CitySim.
  *
  * Everything in the world view is drawn procedurally at runtime by
- * sixblocks-render.js (p5.js) from seeded PRNGs, so there is no bitmap sprite
+ * citysim-render.js (p5.js) from seeded PRNGs, so there is no bitmap sprite
  * pipeline. This script (re)generates the few static assets that must exist as
  * files: the favicon (a tiny procedural six-block grid) and the shared palette
  * JSON that keeps the p5 renderer and the CSS dashboard in the same family.
@@ -14,7 +14,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const assets = join(here, "..", "sixblocks", "game", "client", "assets");
+const assets = join(here, "..", "citysim", "game", "client", "assets");
 
 /* -- seeded prng (mulberry32) -------------------------------------------- */
 function rng(seed) {

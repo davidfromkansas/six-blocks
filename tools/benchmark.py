@@ -16,8 +16,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from sixblocks.harness import run_episode
-from sixblocks.policies import STRATEGIES
+from citysim.harness import run_episode
+from citysim.policies import STRATEGIES
 
 ORDER = [
     "do_nothing",

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from sixblocks.simulation.engine import Episode
-from sixblocks.simulation.interventions import INTERVENTIONS, action_catalog
+from citysim.simulation.engine import Episode
+from citysim.simulation.interventions import INTERVENTIONS, action_catalog
 
 
 def test_catalog_matches_spec() -> None:

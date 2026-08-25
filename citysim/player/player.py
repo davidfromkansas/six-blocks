@@ -2,7 +2,7 @@
 
 Connects to the game's /player WebSocket, plays every day with the balanced-baseline
 policy, and always finishes the episode. Strategy and seed can be overridden through
-SIXBLOCKS_STRATEGY / SIXBLOCKS_POLICY_SEED for benchmark runs.
+CITYSIM_STRATEGY / CITYSIM_POLICY_SEED for benchmark runs.
 """
 
 from __future__ import annotations
@@ -15,18 +15,18 @@ from typing import Any
 
 import websockets
 
-from sixblocks.policies import make_policy
+from citysim.policies import make_policy
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
-logger = logging.getLogger("sixblocks.player")
+logger = logging.getLogger("citysim.player")
 
 MAX_REJECTED_PER_DAY = 24
 
 
 async def main() -> None:
     url = os.environ["COWORLD_PLAYER_WS_URL"]
-    strategy = os.environ.get("SIXBLOCKS_STRATEGY", "balanced_baseline")
-    policy_seed = int(os.environ.get("SIXBLOCKS_POLICY_SEED", "0"))
+    strategy = os.environ.get("CITYSIM_STRATEGY", "balanced_baseline")
+    policy_seed = int(os.environ.get("CITYSIM_POLICY_SEED", "0"))
     policy = make_policy(strategy, seed=policy_seed)
     logger.info("connecting to %s as %s", url, strategy)
 

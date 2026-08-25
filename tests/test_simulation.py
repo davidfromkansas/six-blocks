@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import math
 
-from sixblocks.harness import run_episode
-from sixblocks.policies import STRATEGIES
-from sixblocks.simulation.engine import Episode
-from sixblocks.simulation.events import EVENT_KINDS
-from sixblocks.simulation.metrics import compute_metrics
+from citysim.harness import run_episode
+from citysim.policies import STRATEGIES
+from citysim.simulation.engine import Episode
+from citysim.simulation.events import EVENT_KINDS
+from citysim.simulation.metrics import compute_metrics
 
 
 def walk(payload: object, path: str = "$") -> None:
