@@ -1,6 +1,6 @@
 services:
-  sixblocks:
-    image: coworld-sixblocks:latest
+  citysim:
+    image: coworld-citysim:latest
     platform: linux/amd64
     build:
       context: .

@@ -1,8 +1,8 @@
 {
-  "name": "six-blocks",
+  "name": "citysim",
   "version": "0.1.0",
   "private": true,
-  "description": "Six Blocks - procedural asset generation and client tooling",
+  "description": "CitySim - procedural asset generation and client tooling",
   "scripts": {
     "generate-assets": "node tools/generate_assets.mjs"
   }

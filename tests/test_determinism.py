@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import json
 
-from sixblocks.harness import run_episode
-from sixblocks.simulation.engine import Episode
+from citysim.harness import run_episode
+from citysim.simulation.engine import Episode
 
 
 def canonical(payload: object) -> str:

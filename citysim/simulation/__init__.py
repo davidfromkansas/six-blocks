@@ -1,4 +1,4 @@
-"""Six Blocks simulation engine (deterministic, seed-driven)."""
+"""CitySim simulation engine (deterministic, seed-driven)."""
 
 from .engine import Episode, new_seed
 

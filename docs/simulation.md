@@ -1,4 +1,4 @@
-# Six Blocks — Simulation
+# CitySim — Simulation
 
 Deterministic by seed: all randomness comes from a seeded PRNG; the same seed produces
 the same neighborhood, the same event schedule, and — with the same actions — the same

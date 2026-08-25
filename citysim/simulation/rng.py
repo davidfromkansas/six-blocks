@@ -1,6 +1,6 @@
 """Deterministic pseudo-random number generation.
 
-Every stochastic choice in Six Blocks flows through :class:`Rng`. The algorithm is
+Every stochastic choice in CitySim flows through :class:`Rng`. The algorithm is
 splitmix64, implemented in explicit 64-bit integer arithmetic so results are identical
 on every platform and Python version. Never use :mod:`random` or wall-clock state in
 simulation code.

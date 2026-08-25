@@ -1,4 +1,4 @@
-# Six Blocks — Player Protocol
+# CitySim — Player Protocol
 
 One management seat, JSON over a WebSocket.
 
@@ -15,7 +15,7 @@ On connect the game sends a single `welcome` message:
 ```json
 {
   "type": "welcome",
-  "game": "six_blocks",
+  "game": "citysim",
   "protocol_version": 1,
   "seed": 7,
   "total_days": 30,

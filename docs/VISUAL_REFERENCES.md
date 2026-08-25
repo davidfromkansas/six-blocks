@@ -1,6 +1,6 @@
 # Visual References
 
-Six Blocks' look is inspired by real NYC streetscapes and by late-1990s/2000s 2D
+CitySim' look is inspired by real NYC streetscapes and by late-1990s/2000s 2D
 management games, but every asset is generated procedurally with p5.js — no
 photographs, no copyrighted game art, no traced sprites.
 
@@ -28,7 +28,7 @@ photographs, no copyrighted game art, no traced sprites.
 - Crosswalks are wide white ladder stripes; bike lanes are green painted strips.
 - Life reads through motion: pedestrians, yellow cabs, buses.
 
-## How Six Blocks represents them
+## How CitySim represents them
 
 - Top-down 2D view, six dense rectangular blocks with sidewalk aprons and ladder
   crosswalks at corners.
@@ -41,7 +41,7 @@ photographs, no copyrighted game art, no traced sprites.
 - Event dressing: heat shimmer tint, flood water sheets, construction barriers,
   festival bunting, trash bag piles, blackout dimming.
 
-## What Six Blocks deliberately omits
+## What CitySim deliberately omits
 
 - Real place names, landmarks, or recognizable buildings (block names are invented).
 - Photorealism, textures, or licensed imagery of any kind.

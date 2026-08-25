@@ -1,11 +1,11 @@
-/* Six Blocks p5.js world renderer.
+/* CitySim p5.js world renderer.
  *
  * Draws the whole neighborhood procedurally: no bitmap art, every visual is generated
  * from the world payload plus deterministic seeded variation (same seed -> same city).
  * Used unchanged by the live player client, the spectator client, and the replay client.
  *
  * API:
- *   const renderer = new SixBlocksRenderer(containerId, { onHover(id, kind) });
+ *   const renderer = new CitySimRenderer(containerId, { onHover(id, kind) });
  *   renderer.setWorld(world);           // static geometry, once
  *   renderer.setFrame(frame);           // per-day simulation frame
  *   renderer.setDay(day);
@@ -44,7 +44,7 @@ const SB = {
   night: [24, 26, 44],
 };
 
-class SixBlocksRenderer {
+class CitySimRenderer {
   constructor(containerId, opts) {
     this.opts = opts || {};
     this.world = null;
@@ -507,4 +507,4 @@ class SixBlocksRenderer {
   }
 }
 
-window.SixBlocksRenderer = SixBlocksRenderer;
+window.CitySimRenderer = CitySimRenderer;

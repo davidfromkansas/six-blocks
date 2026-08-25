@@ -4,7 +4,7 @@
 (function () {
   const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
   const ws = new WebSocket(proto + "//" + window.location.host + "/replay");
-  const renderer = new SixBlocksRenderer("world", {});
+  const renderer = new CitySimRenderer("world", {});
   const scrub = document.getElementById("scrub");
   const playBtn = document.getElementById("play");
   const dayLabel = document.getElementById("daylabel");

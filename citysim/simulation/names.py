@@ -36,7 +36,7 @@ BLOCK_NAMES = {
 
 BUSINESS_NAME_PARTS = {
     "bodega": ["Corner", "Halden", "Sable", "Row", "Kestrel"],
-    "grocery": ["Ashgrove", "Six Blocks", "Fenner"],
+    "grocery": ["Ashgrove", "CitySim", "Fenner"],
     "cafe": ["Slow", "Third Rail", "Morning", "Marlow"],
     "bakery": ["Kestrel", "Bright", "Early"],
     "restaurant": ["Marlow", "Halden", "Twelfth"],
@@ -60,6 +60,6 @@ def full_name(rng) -> str:
 
 
 def business_name(rng, category: str) -> str:
-    parts = BUSINESS_NAME_PARTS.get(category, ["Six Blocks"])
+    parts = BUSINESS_NAME_PARTS.get(category, ["CitySim"])
     suffix = BUSINESS_NAME_SUFFIX.get(category, ["Shop"])
     return f"{rng.choice(parts)} {rng.choice(suffix)}"

@@ -82,7 +82,7 @@ class Episode:
         city = self.city
         return {
             "type": "welcome",
-            "game": "six_blocks",
+            "game": "citysim",
             "protocol_version": 1,
             "seed": self.seed,
             "total_days": city.total_days,
@@ -411,11 +411,12 @@ class Episode:
         score = score_episode(self.city)
         city = self.city
         return {
-            "game": "six_blocks",
+            "game": "citysim",
             "seed": self.seed,
             "days_simulated": len(city.daily_metrics),
             "total_days": city.total_days,
             "score": score["final_score"],
+            "scores": [score["final_score"]],
             "components": score["components"],
             "weights": score["weights"],
             "headline": score["headline"],
@@ -439,7 +440,7 @@ class Episode:
 
     def replay(self) -> dict:
         return {
-            "format": "six_blocks_replay",
+            "format": "citysim_replay",
             "version": 1,
             "seed": self.seed,
             "world": self.world(),
