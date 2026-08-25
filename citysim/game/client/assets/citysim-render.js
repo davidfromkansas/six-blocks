@@ -1,10 +1,12 @@
-/* CitySim p5.js world renderer.
+/* CitySim p5.js world renderer — isometric diorama edition.
  *
- * Draws the whole neighborhood procedurally: no bitmap art, every visual is generated
- * from the world payload plus deterministic seeded variation (same seed -> same city).
- * Used unchanged by the live player client, the spectator client, and the replay client.
+ * Draws the whole neighborhood as a floating "tabletop diorama": an isometric
+ * earth slab with a dirt cross-section, extruded buildings with lit/shaded
+ * faces, streets, parks, props, residents, and vehicles. Everything is
+ * procedural: no bitmap art, deterministic seeded variation (same seed ->
+ * same city). Used unchanged by the live player, spectator, and replay clients.
  *
- * API:
+ * API (unchanged):
  *   const renderer = new CitySimRenderer(containerId, { onHover(id, kind) });
  *   renderer.setWorld(world);           // static geometry, once
  *   renderer.setFrame(frame);           // per-day simulation frame
@@ -32,17 +34,31 @@ function sbRng(seed) {
   };
 }
 
+/* Diorama palette: warm paper background, toy-like saturated props. */
 const SB = {
-  street: [56, 58, 64],
-  streetLine: [212, 190, 92],
-  sidewalk: [168, 164, 156],
-  crosswalk: [230, 228, 220],
-  bikeLane: [66, 120, 84],
-  blockGround: [188, 182, 170],
-  parkGreen: [96, 148, 84],
-  water: [70, 110, 150],
-  night: [24, 26, 44],
+  paper: [246, 243, 237],
+  street: [178, 176, 172],
+  streetLine: [236, 232, 220],
+  sidewalk: [214, 210, 200],
+  crosswalk: [244, 242, 234],
+  bikeLane: [104, 156, 118],
+  grass: [140, 186, 106],
+  grassDark: [112, 158, 88],
+  parkGreen: [110, 168, 92],
+  dirtTop: [148, 108, 76],
+  dirtSide: [116, 82, 56],
+  dirtDark: [92, 62, 42],
+  water: [96, 148, 190],
+  night: [30, 32, 52],
+  shadow: [60, 60, 70],
 };
+
+const WALL_H = 10;      // world units of height per building floor
+const SLAB_D = 46;      // dirt slab depth (screen units before scale)
+
+function shade(rgb, f) {
+  return [rgb[0] * f, rgb[1] * f, rgb[2] * f];
+}
 
 class CitySimRenderer {
   constructor(containerId, opts) {
@@ -56,6 +72,8 @@ class CitySimRenderer {
     this.vehicles = [];
     this.blockRow = {};
     this.scale = 1;
+    this.ox = 0;
+    this.oy = 0;
     this.hovered = null;
 
     const self = this;
@@ -98,6 +116,65 @@ class CitySimRenderer {
 
   setDay(day) { this.day = day; }
 
+  /* ----- isometric projection ------------------------------------------- */
+  /* World (x, y) on the ground plane, z up. Screen: 2:1 diamond iso. */
+
+  iso(x, y, z) {
+    const sx = (x - y) * 0.92;
+    const sy = (x + y) * 0.46 - (z || 0);
+    return [this.ox + sx * this.scale, this.oy + sy * this.scale];
+  }
+
+  unproject(mx, my) {
+    const sx = (mx - this.ox) / this.scale;
+    const sy = (my - this.oy) / this.scale;
+    const a = sx / 0.92, b = sy / 0.46;
+    return [(b + a) / 2, (b - a) / 2];
+  }
+
+  fitProjection() {
+    const p = this.p, w = this.world;
+    const maxZ = 108;
+    const cxMin = (0 - w.height) * 0.92, cxMax = (w.width - 0) * 0.92;
+    const cyMin = -maxZ, cyMax = (w.width + w.height) * 0.46 + SLAB_D + 26;
+    const pad = 18;
+    this.scale = Math.min(
+      p.width / (cxMax - cxMin + pad * 2),
+      p.height / (cyMax - cyMin + pad * 2)
+    );
+    this.ox = p.width / 2 - ((cxMin + cxMax) / 2) * this.scale;
+    this.oy = p.height / 2 - ((cyMin + cyMax) / 2) * this.scale;
+  }
+
+  /* Fill a quad given four world-space [x,y,z] corners. */
+  quad3(a, b, c, d) {
+    const p = this.p;
+    const A = this.iso(a[0], a[1], a[2]), B = this.iso(b[0], b[1], b[2]);
+    const C = this.iso(c[0], c[1], c[2]), D = this.iso(d[0], d[1], d[2]);
+    p.quad(A[0], A[1], B[0], B[1], C[0], C[1], D[0], D[1]);
+  }
+
+  /* Ground-plane rect (z = 0). */
+  gRect(x, y, w, h, z) {
+    this.quad3([x, y, z || 0], [x + w, y, z || 0], [x + w, y + h, z || 0], [x, y + h, z || 0]);
+  }
+
+  /* Extruded box with shaded faces. base rect (x,y,w,h), from z0 up to z1. */
+  box(x, y, w, h, z0, z1, rgb, opts) {
+    const p = this.p;
+    const o = opts || {};
+    p.noStroke();
+    // Right face (x+w side) — darkest.
+    p.fill(...shade(rgb, o.rightF || 0.62));
+    this.quad3([x + w, y, z1], [x + w, y + h, z1], [x + w, y + h, z0], [x + w, y, z0]);
+    // Left/front face (y+h side) — mid tone.
+    p.fill(...shade(rgb, o.frontF || 0.8));
+    this.quad3([x, y + h, z1], [x + w, y + h, z1], [x + w, y + h, z0], [x, y + h, z0]);
+    // Top face — full color.
+    p.fill(...shade(rgb, o.topF || 1.0));
+    this.quad3([x, y, z1], [x + w, y, z1], [x + w, y + h, z1], [x, y + h, z1]);
+  }
+
   /* ----- deterministic ambient population ------------------------------- */
 
   seedWalkersAndVehicles() {
@@ -108,9 +185,10 @@ class CitySimRenderer {
       return {
         id: r.id, block_id: r.home_block_id, mode: r.commute_mode,
         px: block.rect.x + rng() * block.rect.w,
-        py: block.rect.y + block.rect.h + 10 + rng() * 14, // home sidewalk
+        py: block.rect.y + block.rect.h + 6 + rng() * 10, // home sidewalk
         phase: rng() * Math.PI * 2, speed: 0.35 + rng() * 0.5,
         hue: Math.floor(rng() * 360), range: 40 + rng() * 140,
+        bubble: rng() < 0.22, bubblePhase: rng() * 40,
       };
     });
     const vr = sbRng(sbHash("vehicles:" + w.seed));
@@ -128,30 +206,85 @@ class CitySimRenderer {
 
   drawAll() {
     const p = this.p;
-    if (!this.world) { p.background(30); return; }
+    if (!this.world) { p.background(SB.paper[0], SB.paper[1], SB.paper[2]); return; }
     this.time = p.millis() / 1000;
     const w = this.world;
-    this.scale = Math.min(p.width / w.width, p.height / w.height);
-    p.push();
-    p.scale(this.scale);
+    this.fitProjection();
 
-    p.background(SB.street[0], SB.street[1], SB.street[2]);
+    p.background(SB.paper[0], SB.paper[1], SB.paper[2]);
+    this.drawSlab();
+    this.drawGround();
     this.drawStreets();
-    w.blocks.forEach((b) => this.drawBlock(b));
+    w.blocks.forEach((b) => this.drawBlockGround(b));
     this.drawCrosswalks();
-    this.drawVehicles();
-    w.buildings.forEach((b) => this.drawBuilding(b));
-    w.blocks.forEach((b) => this.drawBlockFurniture(b));
-    this.drawWalkers();
-    w.blocks.forEach((b) => this.drawEventOverlays(b));
+    this.drawGroundOverlays();
+
+    // Depth-sorted solid objects (painter's algorithm on x + y at base).
+    const items = [];
+    w.buildings.forEach((b) => items.push({
+      d: b.rect.x + b.rect.w + b.rect.y + b.rect.h, f: () => this.drawBuilding(b),
+    }));
+    w.blocks.forEach((b) => this.collectFurniture(b, items));
+    this.collectVehicles(items);
+    this.collectWalkers(items);
+    items.sort((a, b) => a.d - b.d);
+    items.forEach((it) => it.f());
+
     this.drawSkyTint();
     w.blocks.forEach((b) => this.drawBlockLabel(b));
     if (this.debug) this.drawDebug();
-    p.pop();
+  }
+
+  /* Floating earth slab: grass rim + dirt cross-section under the city. */
+  drawSlab() {
+    const p = this.p, w = this.world;
+    const m = 14; // grass apron beyond the street grid
+    const x0 = -m, y0 = -m, x1 = w.width + m, y1 = w.height + m;
+    p.noStroke();
+    // Soft drop shadow under the floating slab.
+    const S = this.iso((x0 + x1) / 2, (y0 + y1) / 2, -SLAB_D - 10);
+    p.fill(SB.shadow[0], SB.shadow[1], SB.shadow[2], 26);
+    p.ellipse(S[0], S[1] + 14 * this.scale, (x1 - x0) * 1.5 * this.scale, (y1 - y0) * 0.62 * this.scale);
+    // Dirt sides with strata.
+    p.fill(...SB.dirtSide);
+    this.quad3([x0, y1, 0], [x1, y1, 0], [x1, y1, -SLAB_D], [x0, y1, -SLAB_D]);
+    p.fill(...SB.dirtDark);
+    this.quad3([x1, y0, 0], [x1, y1, 0], [x1, y1, -SLAB_D], [x1, y0, -SLAB_D]);
+    // Strata lines + embedded rocks for the cross-section look.
+    const rng = sbRng(sbHash("slab:" + w.seed));
+    p.fill(SB.dirtDark[0], SB.dirtDark[1], SB.dirtDark[2], 120);
+    for (let i = 1; i < 4; i++) {
+      const z = -(SLAB_D / 4) * i;
+      this.quad3([x0, y1, z], [x1, y1, z], [x1, y1, z - 2], [x0, y1, z - 2]);
+    }
+    p.fill(168, 148, 128, 200);
+    for (let i = 0; i < 16; i++) {
+      const rx = x0 + rng() * (x1 - x0), rz = -6 - rng() * (SLAB_D - 12);
+      const R = this.iso(rx, y1, rz);
+      p.ellipse(R[0], R[1], (3 + rng() * 5) * this.scale, (2 + rng() * 3) * this.scale);
+    }
+    // Grass rim on top.
+    p.fill(...SB.grass);
+    this.gRect(x0, y0, x1 - x0, y1 - y0, 0);
+    // Grass tufts on the apron.
+    p.fill(...SB.grassDark);
+    for (let i = 0; i < 60; i++) {
+      const gx = x0 + rng() * (x1 - x0), gy = y0 + rng() * (y1 - y0);
+      if (gx > -3 && gx < w.width + 3 && gy > -3 && gy < w.height + 3) continue;
+      const G = this.iso(gx, gy, 0);
+      p.ellipse(G[0], G[1], 3.4 * this.scale, 1.8 * this.scale);
+    }
+  }
+
+  drawGround() {
+    // Street bed across the whole city rectangle; blocks are drawn on top.
+    const p = this.p, w = this.world;
+    p.noStroke();
+    p.fill(...SB.street);
+    this.gRect(0, 0, w.width, w.height, 0);
   }
 
   streetRects() {
-    // Streets are the gaps between block rects; recompute simple bands.
     const w = this.world;
     const xs = [...new Set(w.blocks.map((b) => b.rect.x))].sort((a, b) => a - b);
     const ys = [...new Set(w.blocks.map((b) => b.rect.y))].sort((a, b) => a - b);
@@ -165,66 +298,93 @@ class CitySimRenderer {
   drawStreets() {
     const p = this.p, w = this.world;
     const { v, h } = this.streetRects();
+    // Lane dashes.
     p.noStroke();
-    // Lane markings
-    p.stroke(SB.streetLine[0], SB.streetLine[1], SB.streetLine[2], 130);
-    p.strokeWeight(2);
+    p.fill(SB.streetLine[0], SB.streetLine[1], SB.streetLine[2], 210);
     v.forEach(([x0, x1]) => {
       const mid = (x0 + x1) / 2;
-      for (let y = 0; y < w.height; y += 34) p.line(mid, y, mid, y + 16);
+      for (let y = 4; y < w.height - 4; y += 30) this.gRect(mid - 1, y, 2, 14, 0.1);
     });
     h.forEach(([y0, y1]) => {
       const mid = (y0 + y1) / 2;
-      for (let x = 0; x < w.width; x += 34) p.line(x, mid, x + 16, mid);
+      for (let x = 4; x < w.width - 4; x += 30) this.gRect(x, mid - 1, 14, 2, 0.1);
     });
-    // Bike lanes hug the block edges where capacity exists
-    p.strokeWeight(4);
+    // Bike lanes hug the block edges where capacity exists.
     w.blocks.forEach((b) => {
       const row = this.blockRow[b.id];
       if (!row || (row.bike_capacity || 0) < 25) return;
-      p.stroke(SB.bikeLane[0], SB.bikeLane[1], SB.bikeLane[2], 200);
-      p.line(b.rect.x - 8, b.rect.y - 8, b.rect.x + b.rect.w + 8, b.rect.y - 8);
+      p.fill(SB.bikeLane[0], SB.bikeLane[1], SB.bikeLane[2], 220);
+      this.gRect(b.rect.x - 9, b.rect.y - 9, b.rect.w + 18, 3, 0.1);
     });
-    p.noStroke();
   }
 
   drawCrosswalks() {
     const p = this.p, w = this.world;
-    p.fill(SB.crosswalk[0], SB.crosswalk[1], SB.crosswalk[2], 180);
+    p.noStroke();
+    p.fill(SB.crosswalk[0], SB.crosswalk[1], SB.crosswalk[2], 220);
     w.blocks.forEach((b) => {
       const r = b.rect;
       for (let i = 0; i < 5; i++) {
-        p.rect(r.x + r.w + 12, r.y + 16 + i * 10, 26, 5, 1);       // east crossing
-        p.rect(r.x + 16 + i * 10, r.y + r.h + 12, 5, 26, 1);       // south crossing
+        if (r.x + r.w + 30 < w.width) this.gRect(r.x + r.w + 9, r.y + 14 + i * 9, 18, 4, 0.15);
+        if (r.y + r.h + 30 < w.height) this.gRect(r.x + 14 + i * 9, r.y + r.h + 9, 4, 18, 0.15);
       }
     });
   }
 
-  drawBlock(b) {
-    const p = this.p;
-    const r = b.rect;
-    // Sidewalk apron
-    p.noStroke();
-    p.fill(SB.sidewalk[0], SB.sidewalk[1], SB.sidewalk[2]);
-    p.rect(r.x - 10, r.y - 10, r.w + 20, r.h + 20, 4);
-    // Interior ground, tinted by cleanliness
+  drawBlockGround(b) {
+    const p = this.p, r = b.rect;
+    // Raised sidewalk curb: a very shallow box gives the diorama a tactile edge.
+    this.box(r.x - 7, r.y - 7, r.w + 14, r.h + 14, 0, 1.6, SB.sidewalk);
+    // Interior ground, tinted by cleanliness.
     const row = this.blockRow[b.id] || {};
     const clean = row.cleanliness == null ? 65 : row.cleanliness;
     const dirt = Math.max(0, 65 - clean) / 65;
+    p.noStroke();
     p.fill(
-      SB.blockGround[0] - dirt * 26,
-      SB.blockGround[1] - dirt * 32,
-      SB.blockGround[2] - dirt * 34
+      SB.grass[0] * (1 - dirt) + 150 * dirt,
+      SB.grass[1] * (1 - dirt) + 128 * dirt,
+      SB.grass[2] * (1 - dirt) + 96 * dirt
     );
-    p.rect(r.x, r.y, r.w, r.h, 3);
-    // Litter specks when dirty
+    this.gRect(r.x, r.y, r.w, r.h, 1.6);
+    // Litter specks when dirty.
     if (dirt > 0.25) {
       const rng = sbRng(sbHash("litter:" + b.id + ":" + this.day));
-      p.fill(120, 104, 84, 190);
+      p.fill(110, 96, 78, 200);
       const n = Math.floor(dirt * 26);
-      for (let i = 0; i < n; i++) p.rect(r.x + rng() * r.w, r.y + rng() * r.h, 3, 2);
+      for (let i = 0; i < n; i++) {
+        const L = this.iso(r.x + rng() * r.w, r.y + rng() * r.h, 1.7);
+        p.ellipse(L[0], L[1], 2.6 * this.scale, 1.5 * this.scale);
+      }
     }
   }
+
+  /* Flat overlays that belong to the ground plane (flood water, outage tint). */
+  drawGroundOverlays() {
+    const p = this.p;
+    const events = (this.frame && this.frame.events) || [];
+    this.world.blocks.forEach((b) => {
+      const r = b.rect;
+      events.forEach((ev) => {
+        const hits = ev.citywide || (ev.block_ids || []).includes(b.id);
+        if (!hits) return;
+        if (ev.kind === "flash_flood") {
+          p.noStroke();
+          p.fill(SB.water[0], SB.water[1], SB.water[2], 150);
+          this.gRect(r.x - 9, r.y + r.h * 0.5, r.w + 18, r.h * 0.5 + 9, 1.8);
+          // ripples
+          p.fill(255, 255, 255, 70);
+          const t = Math.sin(this.time * 2) * 2;
+          this.gRect(r.x + 6 + t, r.y + r.h * 0.66, r.w * 0.4, 1.4, 1.9);
+        } else if (ev.kind === "power_outage") {
+          p.noStroke();
+          p.fill(SB.night[0], SB.night[1], SB.night[2], 90);
+          this.gRect(r.x - 9, r.y - 9, r.w + 18, r.h + 18, 1.85);
+        }
+      });
+    });
+  }
+
+  /* ----- buildings ------------------------------------------------------ */
 
   drawBuilding(b) {
     const p = this.p;
@@ -234,45 +394,126 @@ class CitySimRenderer {
       this.drawOpenSpace(b, rng);
       return;
     }
-    // Facade
+    // Inset footprint so buildings read as separate toy volumes with yards.
+    const inset = Math.min(r.w, r.h) * 0.09;
+    const bx = r.x + inset, by = r.y + inset;
+    const bw = r.w - inset * 2, bh = r.h - inset * 2;
+    const zTop = 1.6 + Math.max(2, b.floors) * WALL_H * (0.8 + (b.quality / 100) * 0.2);
+    // SoHo cast-iron loft palette: painted-iron creams/whites, warm brick
+    // reds, tan brownstone, and the occasional sage/slate facade.
+    const isBrick = rng() < 0.42 && b.kind !== "civic";
+    const brickTones = [
+      [168, 92, 70], [154, 82, 64], [176, 104, 78], [140, 76, 62],
+    ];
+    const ironTones = [
+      [232, 224, 208], [222, 214, 196], [214, 200, 178], [206, 196, 170],
+      [196, 188, 176], [186, 178, 150], [172, 180, 168], [204, 182, 152],
+    ];
+    const tones = isBrick ? brickTones : ironTones;
+    const rgb = b.kind === "civic"
+      ? [226, 220, 206]
+      : tones[Math.floor(rng() * tones.length)];
+    this.box(bx, by, bw, bh, 1.6, zTop, rgb);
+
+    // Facades: regular bays of tall windows, pilaster strips between bays,
+    // and a darker ground-floor storefront band (front = y+h, right = x+w).
+    const winLit = [255, 236, 170];
+    const glass = isBrick ? [58, 62, 78] : [72, 84, 102];
+    const winFront = glass;
+    const winRight = shade(glass, 0.72);
+    const trim = isBrick ? shade(rgb, 1.22) : [246, 240, 226];
+    const floors = Math.max(2, Math.min(9, b.floors));
+    const colsF = Math.max(3, Math.min(6, Math.round(bw / 13)));
+    const colsR = Math.max(3, Math.min(6, Math.round(bh / 13)));
+    const zBase = 1.6, zH = zTop - zBase;
+    const fz = (t) => zBase + zH * t;
     p.noStroke();
-    p.colorMode(p.HSB, 360, 100, 100);
-    const sat = b.kind === "civic" ? 8 : 26 + rng() * 22;
-    const bright = 46 + (b.quality / 100) * 22 + rng() * 8;
-    p.fill(b.facade_hue, sat, bright);
-    p.rect(r.x, r.y, r.w, r.h, 2);
-    // Roof detailing: parapet + water tank on taller buildings
-    p.fill(b.facade_hue, sat, bright - 14);
-    p.rect(r.x, r.y, r.w, 5);
-    if (b.floors >= 5) {
-      p.fill(28, 42, 38);
-      p.circle(r.x + r.w * (0.25 + rng() * 0.5), r.y + r.h * (0.3 + rng() * 0.3), 9);
+
+    // Ground-floor storefront band (cast-iron columns + dark glazing).
+    p.fill(...shade(glass, 0.85));
+    this.quad3([bx, by + bh, fz(0.02)], [bx + bw, by + bh, fz(0.02)], [bx + bw, by + bh, fz(1 / floors * 0.82)], [bx, by + bh, fz(1 / floors * 0.82)]);
+    p.fill(...shade(trim, 0.94));
+    for (let j = 0; j <= colsF; j++) {
+      const cx = bx + j * (bw / colsF);
+      this.quad3([cx - 0.8, by + bh, fz(0.02)], [cx + 0.8, by + bh, fz(0.02)], [cx + 0.8, by + bh, fz(1 / floors * 0.86)], [cx - 0.8, by + bh, fz(1 / floors * 0.86)]);
     }
-    // Window grid (roof view keeps it abstract: skylight rows per floor strip)
-    p.fill(b.facade_hue, Math.min(60, sat + 12), bright - 22);
-    const rows = Math.max(2, Math.min(6, Math.floor(b.floors / 1.5)));
-    const cols = Math.max(2, Math.floor(r.w / 14));
-    for (let i = 0; i < rows; i++) {
-      for (let j = 0; j < cols; j++) {
-        if (rng() < 0.18) continue;
-        p.rect(r.x + 4 + j * ((r.w - 8) / cols), r.y + 8 + i * ((r.h - 12) / rows), 5, 4, 1);
+
+    // Upper floors: tall segmental/arched windows in symmetric bays.
+    for (let fl = 1; fl < floors; fl++) {
+      const z0 = fz((fl + 0.18) / floors);
+      const z1 = fz((fl + 0.78) / floors);
+      const zArc = fz((fl + 0.9) / floors);
+      for (let j = 0; j < colsF; j++) {
+        const wc = bx + (j + 0.5) * (bw / colsF);
+        const hw = (bw / colsF) * 0.26;
+        const lit = rng() < 0.07;
+        p.fill(...(lit ? winLit : winFront));
+        this.quad3([wc - hw, by + bh, z1], [wc + hw, by + bh, z1], [wc + hw, by + bh, z0], [wc - hw, by + bh, z0]);
+        // arched head
+        this.quad3([wc - hw * 0.6, by + bh, zArc], [wc + hw * 0.6, by + bh, zArc], [wc + hw, by + bh, z1], [wc - hw, by + bh, z1]);
+        // sill
+        p.fill(...trim);
+        this.quad3([wc - hw - 0.6, by + bh, z0], [wc + hw + 0.6, by + bh, z0], [wc + hw + 0.6, by + bh, fz((fl + 0.12) / floors)], [wc - hw - 0.6, by + bh, fz((fl + 0.12) / floors)]);
       }
+      for (let j = 0; j < colsR; j++) {
+        const wc = by + (j + 0.5) * (bh / colsR);
+        const hw = (bh / colsR) * 0.26;
+        p.fill(...(rng() < 0.05 ? winLit : winRight));
+        this.quad3([bx + bw, wc - hw, z1], [bx + bw, wc + hw, z1], [bx + bw, wc + hw, z0], [bx + bw, wc - hw, z0]);
+        this.quad3([bx + bw, wc - hw * 0.6, zArc], [bx + bw, wc + hw * 0.6, zArc], [bx + bw, wc + hw, z1], [bx + bw, wc - hw, z1]);
+      }
+      // Floor band / string course between stories.
+      p.fill(...shade(trim, 0.9));
+      this.quad3([bx, by + bh, fz(fl / floors)], [bx + bw, by + bh, fz(fl / floors)], [bx + bw, by + bh, fz(fl / floors + 0.012)], [bx, by + bh, fz(fl / floors + 0.012)]);
     }
-    p.colorMode(p.RGB, 255);
-    // Storefront awning strip for mixed-use / commercial ground floors
+
+    // Fire escape zigzag on brick facades.
+    if (isBrick && floors >= 3) {
+      const ex0 = bx + bw * 0.3, ex1 = bx + bw * 0.62;
+      p.stroke(46, 48, 52, 220);
+      p.strokeWeight(Math.max(0.8, this.scale * 0.7));
+      for (let fl = 1; fl < floors; fl++) {
+        const zA = fz((fl + 0.2) / floors), zB = fz((fl + 1.0) / floors);
+        const A = this.iso(ex0, by + bh, zA), B = this.iso(ex1, by + bh, zA);
+        const C = this.iso(fl % 2 ? ex1 : ex0, by + bh, zB);
+        p.line(A[0], A[1], B[0], B[1]);
+        const S = fl % 2 ? B : A;
+        p.line(S[0], S[1], C[0], C[1]);
+      }
+      p.noStroke();
+    }
+
+    // Bracketed roof cornice: projecting cap slab over the facade.
+    this.box(bx - 1.2, by - 1.2, bw + 2.4, bh + 2.4, zTop, zTop + 2, isBrick ? shade(rgb, 0.9) : trim);
+    if (b.floors >= 5 && rng() < 0.8) {
+      const tx = bx + bw * (0.25 + rng() * 0.4), ty = by + bh * (0.25 + rng() * 0.4);
+      this.box(tx, ty, 7, 7, zTop + 1.6, zTop + 9, [122, 88, 60]);
+      const T = this.iso(tx + 3.5, ty + 3.5, zTop + 9.8);
+      p.noStroke(); p.fill(96, 66, 44);
+      p.ellipse(T[0], T[1], 9 * this.scale, 4.8 * this.scale);
+    } else if (rng() < 0.5) {
+      this.box(bx + bw * 0.6, by + bh * 0.2, 5, 5, zTop + 1.6, zTop + 4, [176, 176, 182]);
+    }
+
+    // Storefront awning strip for mixed-use / commercial ground floors.
     if (b.business_id) {
       const arng = sbRng(sbHash("awn:" + b.id));
-      p.fill(170 + arng() * 60, 60 + arng() * 90, 60 + arng() * 40, 235);
-      p.rect(r.x + 2, r.y + r.h - 7, r.w - 4, 7, 2);
-      p.fill(255, 244, 214, 240);
-      for (let x = r.x + 4; x < r.x + r.w - 6; x += 8) p.rect(x, r.y + r.h - 7, 4, 7);
+      const aw = [170 + arng() * 60, 60 + arng() * 90, 60 + arng() * 40];
+      p.noStroke(); p.fill(aw[0], aw[1], aw[2], 245);
+      this.quad3([bx, by + bh, 8.4], [bx + bw, by + bh, 8.4], [bx + bw, by + bh + 4, 4.4], [bx, by + bh + 4, 4.4]);
+      p.fill(255, 246, 222, 250);
+      for (let x = bx + 1.5; x < bx + bw - 3; x += 7) {
+        this.quad3([x, by + bh, 8.4], [x + 3.5, by + bh, 8.4], [x + 3.5, by + bh + 4, 4.4], [x, by + bh + 4, 4.4]);
+      }
     }
-    // Civic buildings get a tiny flag
+    // Civic buildings get a tiny flag on the roof.
     if (b.kind === "civic") {
-      p.stroke(200); p.strokeWeight(1);
-      p.line(r.x + r.w - 8, r.y + 2, r.x + r.w - 8, r.y - 8);
+      const F = this.iso(bx + bw - 4, by + 3, zTop + 1.6);
+      const Ft = this.iso(bx + bw - 4, by + 3, zTop + 12);
+      p.stroke(210); p.strokeWeight(Math.max(1, this.scale));
+      p.line(F[0], F[1], Ft[0], Ft[1]);
       p.noStroke(); p.fill(90, 130, 190);
-      p.triangle(r.x + r.w - 8, r.y - 8, r.x + r.w - 8, r.y - 3, r.x + r.w, r.y - 5.5);
+      p.triangle(Ft[0], Ft[1], Ft[0], Ft[1] + 4 * this.scale, Ft[0] + 7 * this.scale, Ft[1] + 2 * this.scale);
     }
   }
 
@@ -282,177 +523,309 @@ class CitySimRenderer {
     const quality = b.kind === "playground" ? (row.playground_quality || 40) : (row.park_quality || 40);
     const g = Math.max(0.25, quality / 100);
     p.noStroke();
-    p.fill(SB.parkGreen[0] * g + 120 * (1 - g), SB.parkGreen[1] * g + 110 * (1 - g), SB.parkGreen[2] * g + 90 * (1 - g));
-    p.rect(r.x, r.y, r.w, r.h, 6);
-    // Paths
-    p.fill(206, 196, 176);
-    p.rect(r.x + r.w * 0.45, r.y, r.w * 0.12, r.h, 3);
-    // Trees
+    p.fill(
+      SB.parkGreen[0] * g + 150 * (1 - g),
+      SB.parkGreen[1] * g + 140 * (1 - g),
+      SB.parkGreen[2] * g + 104 * (1 - g)
+    );
+    this.gRect(r.x, r.y, r.w, r.h, 1.7);
+    // Winding path.
+    p.fill(216, 206, 184);
+    this.gRect(r.x + r.w * 0.44, r.y, r.w * 0.12, r.h, 1.8);
+    // Trees: trunk + two-tone canopy blobs.
     const n = Math.floor(3 + g * 7);
     for (let i = 0; i < n; i++) {
-      const tx = r.x + 6 + rng() * (r.w - 12), ty = r.y + 6 + rng() * (r.h - 12);
-      p.fill(40, 84, 46, 240);
-      p.circle(tx, ty, 10 + rng() * 8);
-      p.fill(66, 116, 62, 200);
-      p.circle(tx - 2, ty - 2, 6 + rng() * 4);
+      const tx = r.x + 5 + rng() * (r.w - 10), ty = r.y + 5 + rng() * (r.h - 10);
+      this.drawTree(tx, ty, 1.7, 0.8 + rng() * 0.7, rng);
     }
     if (b.kind === "playground") {
-      p.fill(214, 158, 60);
-      p.rect(r.x + r.w * 0.2, r.y + r.h * 0.3, r.w * 0.25, r.h * 0.3, 3);
-      p.fill(190, 70, 70);
-      p.circle(r.x + r.w * 0.7, r.y + r.h * 0.5, r.h * 0.24);
+      this.box(r.x + r.w * 0.2, r.y + r.h * 0.32, r.w * 0.24, r.h * 0.26, 1.7, 4.6, [222, 166, 66]);
+      const C = this.iso(r.x + r.w * 0.72, r.y + r.h * 0.5, 2);
+      p.noStroke(); p.fill(198, 74, 74);
+      p.ellipse(C[0], C[1], r.h * 0.22 * this.scale * 1.3, r.h * 0.22 * this.scale * 0.7);
     }
     if (b.kind === "plaza") {
-      p.fill(204, 196, 182);
-      p.rect(r.x + 4, r.y + 4, r.w - 8, r.h - 8, 4);
-      p.fill(120, 140, 170);
-      p.circle(r.x + r.w / 2, r.y + r.h / 2, 12); // fountain
+      p.fill(210, 202, 188);
+      this.gRect(r.x + 3, r.y + 3, r.w - 6, r.h - 6, 1.75);
+      // Fountain: basin + animated jet.
+      const cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+      this.box(cx - 4, cy - 4, 8, 8, 1.75, 3.4, [150, 168, 190]);
+      const J = this.iso(cx, cy, 3.4 + Math.abs(Math.sin(this.time * 2.4)) * 4);
+      p.fill(SB.water[0], SB.water[1], SB.water[2], 220);
+      p.ellipse(J[0], J[1], 3.2 * this.scale, 4.6 * this.scale);
     }
   }
 
-  drawBlockFurniture(b) {
-    const p = this.p, r = b.rect;
+  drawTree(x, y, z, s, rng) {
+    const p = this.p;
+    // trunk
+    this.box(x - 1.1 * s, y - 1.1 * s, 2.2 * s, 2.2 * s, z, z + 5 * s, [124, 90, 60]);
+    // canopy: stacked shaded blobs
+    const C = this.iso(x, y, z + 9 * s);
+    p.noStroke();
+    p.fill(58, 112, 58);
+    p.ellipse(C[0] + 1.6 * this.scale, C[1] + 1.6 * this.scale, 15 * s * this.scale, 12 * s * this.scale);
+    p.fill(88, 148, 78);
+    p.ellipse(C[0], C[1], 13.6 * s * this.scale, 10.8 * s * this.scale);
+    p.fill(122, 176, 96, 235);
+    p.ellipse(C[0] - 2 * this.scale, C[1] - 2 * this.scale, 7.4 * s * this.scale, 5.6 * s * this.scale);
+  }
+
+  /* ----- props / furniture ---------------------------------------------- */
+
+  collectFurniture(b, items) {
+    const r = b.rect;
     const rng = sbRng(sbHash("furn:" + b.id));
-    // Street trees along the south sidewalk
-    for (let x = r.x + 14; x < r.x + r.w - 8; x += 44) {
-      p.noStroke(); p.fill(52, 96, 54);
-      p.circle(x + rng() * 6, r.y + r.h + 15, 9);
+    // Street trees along the south sidewalk.
+    for (let x = r.x + 12; x < r.x + r.w - 8; x += 40) {
+      const tx = x + rng() * 6, ty = r.y + r.h + 3.4;
+      items.push({ d: tx + ty, f: () => this.drawTree(tx, ty, 1.6, 0.62, sbRng(sbHash("st:" + b.id + x))) });
     }
-    // Hydrant + lamp posts
-    p.fill(196, 74, 60);
-    p.rect(r.x + r.w - 18, r.y + r.h + 12, 4, 6, 1);
+    // Hydrant.
+    items.push({
+      d: r.x + r.w - 16 + r.y + r.h + 3, f: () => {
+        this.box(r.x + r.w - 16, r.y + r.h + 2.4, 2.2, 2.2, 1.6, 4.4, [206, 78, 62]);
+      },
+    });
     const row = this.blockRow[b.id] || {};
     const lit = (row.lighting || 50) > 55;
-    for (const lx of [r.x + 4, r.x + r.w - 6]) {
-      p.fill(90); p.rect(lx, r.y - 16, 2, 10);
-      p.fill(lit ? p.color(255, 226, 130) : p.color(140), 240);
-      p.circle(lx + 1, r.y - 17, 5);
+    // Lamp posts on the north sidewalk corners.
+    for (const lx of [r.x + 3, r.x + r.w - 5]) {
+      items.push({
+        d: lx + r.y - 4, f: () => {
+          const p = this.p;
+          this.box(lx, r.y - 5, 1.2, 1.2, 1.6, 11, [82, 84, 90]);
+          const L = this.iso(lx + 0.6, r.y - 4.4, 11.8);
+          p.noStroke();
+          p.fill(lit ? p.color(255, 226, 120) : p.color(150), 245);
+          p.circle(L[0], L[1], 4.4 * this.scale);
+          if (lit) { p.fill(255, 226, 120, 46); p.circle(L[0], L[1], 10 * this.scale); }
+        },
+      });
     }
-    // Bus stop on the east sidewalk when service exists
+    // Bus stop on the east sidewalk when service exists.
     if ((row.bus_frequency || 30) > 20) {
-      p.fill(30, 90, 160); p.rect(r.x + r.w + 2, r.y + r.h * 0.4, 6, 14, 2);
-      p.fill(240); p.rect(r.x + r.w + 3.5, r.y + r.h * 0.4 + 2, 3, 4);
+      items.push({
+        d: r.x + r.w + 4 + r.y + r.h * 0.45, f: () => {
+          const p = this.p;
+          this.box(r.x + r.w + 2, r.y + r.h * 0.4, 3, 8, 1.6, 8.4, [40, 100, 170]);
+          p.noStroke(); p.fill(244);
+          const S = this.iso(r.x + r.w + 3.5, r.y + r.h * 0.44 + 2, 6.6);
+          p.rect(S[0] - 1.6 * this.scale, S[1] - 1.6 * this.scale, 3.2 * this.scale, 3.2 * this.scale);
+        },
+      });
     }
-    // Subway entrance
+    // Subway entrance: green stair kiosk with an M globe.
     if (b.has_subway_entrance) {
-      p.fill(24, 94, 66); p.rect(r.x - 9, r.y + r.h * 0.35, 14, 22, 3);
-      p.fill(255); p.textSize(10); p.textAlign(p.CENTER, p.CENTER);
-      p.text("M", r.x - 2, r.y + r.h * 0.35 + 11);
+      items.push({
+        d: r.x - 4 + r.y + r.h * 0.42, f: () => {
+          const p = this.p;
+          this.box(r.x - 8, r.y + r.h * 0.35, 6, 11, 1.6, 6.4, [34, 108, 74]);
+          const M = this.iso(r.x - 5, r.y + r.h * 0.35 + 5.5, 7.6);
+          p.noStroke(); p.fill(255);
+          p.circle(M[0], M[1], 4.6 * this.scale);
+          p.fill(34, 108, 74); p.textSize(Math.max(6, 3.4 * this.scale)); p.textAlign(p.CENTER, p.CENTER);
+          p.text("M", M[0], M[1]);
+        },
+      });
     }
-    // Cooling center banner
+    // Cooling center banner.
     if ((row.conditions || []).includes("cooling_center_open")) {
-      p.fill(70, 150, 230, 235); p.rect(r.x + r.w * 0.35, r.y - 9, r.w * 0.3, 8, 2);
-      p.fill(255); p.textSize(6); p.textAlign(p.CENTER, p.CENTER);
-      p.text("COOLING CENTER", r.x + r.w * 0.5, r.y - 5);
+      items.push({
+        d: r.x + r.w * 0.5 + r.y - 3, f: () => {
+          const p = this.p;
+          const A = this.iso(r.x + r.w * 0.32, r.y - 3, 10), B = this.iso(r.x + r.w * 0.68, r.y - 3, 10);
+          p.noStroke(); p.fill(70, 150, 230, 240);
+          p.rect(A[0], A[1] - 4 * this.scale, B[0] - A[0], 5 * this.scale, 2);
+          p.fill(255); p.textSize(Math.max(6, 2.6 * this.scale)); p.textAlign(p.CENTER, p.CENTER);
+          p.text("COOLING CENTER", (A[0] + B[0]) / 2, A[1] - 1.6 * this.scale);
+        },
+      });
     }
-  }
-
-  drawWalkers() {
-    const p = this.p;
-    if (!this.frame) return;
-    p.noStroke();
-    this.walkers.forEach((wk) => {
-      const row = this.blockRow[wk.block_id] || {};
-      const mood = row.average_mood == null ? 60 : row.average_mood;
-      const t = this.time * wk.speed + wk.phase;
-      const x = wk.px + Math.sin(t) * wk.range * 0.5;
-      const y = wk.py + Math.sin(t * 0.63) * 3;
-      p.colorMode(p.HSB, 360, 100, 100);
-      p.fill(wk.hue, 42, 78);
-      p.circle(x, y, 5);
-      p.fill(36, 30, 88);
-      p.circle(x, y - 3, 3); // head
-      p.colorMode(p.RGB, 255);
-      // Sad residents droop: tiny gray cloud
-      if (mood < 42) { p.fill(120, 120, 130, 160); p.circle(x + 2, y - 7, 4); }
-      if (wk.mode === "bike" && Math.sin(t * 1.7) > 0.4) {
-        p.fill(40); p.circle(x - 2, y + 2, 2.6); p.circle(x + 2, y + 2, 2.6);
-      }
-    });
-  }
-
-  drawVehicles() {
-    const p = this.p, w = this.world;
-    const { v, h } = this.streetRects();
-    this.vehicles.forEach((veh) => {
-      const t = (this.time * veh.speed + veh.offset);
-      p.noStroke();
-      let x, y;
-      if (veh.horizontal && h.length) {
-        const band = h[veh.lane % h.length];
-        y = (band[0] + band[1]) / 2 + (veh.lane % 2 ? -12 : 12);
-        x = (t % (w.width + 60)) - 30;
-      } else if (v.length) {
-        const band = v[veh.lane % v.length];
-        x = (band[0] + band[1]) / 2 + (veh.lane % 2 ? -12 : 12);
-        y = (t % (w.height + 60)) - 30;
-      } else return;
-      const len = veh.kind === "bus" ? 30 : 15;
-      const wid = veh.kind === "bus" ? 10 : 8;
-      if (veh.kind === "bus") p.fill(46, 110, 180);
-      else if (veh.kind === "cab") p.fill(238, 188, 32);
-      else { p.colorMode(p.HSB, 360, 100, 100); p.fill(veh.hue, 30, 62); p.colorMode(p.RGB, 255); }
-      if (veh.horizontal) p.rect(x, y - wid / 2, len, wid, 3);
-      else p.rect(x - wid / 2, y, wid, len, 3);
-      p.fill(20, 24, 30, 200);
-      if (veh.horizontal) p.rect(x + 3, y - wid / 2 + 2, 4, wid - 4, 1);
-      else p.rect(x - wid / 2 + 2, y + 3, wid - 4, 4, 1);
-    });
-  }
-
-  drawEventOverlays(b) {
-    const p = this.p, r = b.rect;
+    // Event props that live above ground.
     const events = (this.frame && this.frame.events) || [];
     events.forEach((ev) => {
       const hits = ev.citywide || (ev.block_ids || []).includes(b.id);
       if (!hits) return;
-      if (ev.kind === "flash_flood") {
-        p.fill(SB.water[0], SB.water[1], SB.water[2], 110);
-        p.rect(r.x - 10, r.y + r.h * 0.55, r.w + 20, r.h * 0.45 + 10, 4);
-      } else if (ev.kind === "power_outage") {
-        p.fill(SB.night[0], SB.night[1], SB.night[2], 120);
-        p.rect(r.x - 10, r.y - 10, r.w + 20, r.h + 20, 4);
-      } else if (ev.kind === "street_construction") {
-        p.fill(226, 150, 32, 220);
-        for (let x = r.x; x < r.x + r.w; x += 22) p.rect(x, r.y + r.h + 16, 12, 6, 1);
-      } else if (ev.kind === "street_festival") {
-        const rng = sbRng(sbHash("fest:" + b.id));
-        for (let x = r.x + 6; x < r.x + r.w - 6; x += 12) {
-          p.colorMode(p.HSB, 360, 100, 100);
-          p.fill(rng() * 360, 70, 90);
-          p.colorMode(p.RGB, 255);
-          p.triangle(x, r.y - 12, x + 8, r.y - 12, x + 4, r.y - 5);
+      if (ev.kind === "street_construction") {
+        for (let x = r.x; x < r.x + r.w; x += 20) {
+          const cx = x;
+          items.push({
+            d: cx + r.y + r.h + 10, f: () => {
+              this.box(cx, r.y + r.h + 9, 7, 2.4, 0.1, 3.4, [230, 152, 36]);
+            },
+          });
         }
+      } else if (ev.kind === "street_festival") {
+        const rng2 = sbRng(sbHash("fest:" + b.id));
+        items.push({
+          d: r.x + r.w / 2 + r.y - 2, f: () => {
+            const p = this.p;
+            for (let x = r.x + 5; x < r.x + r.w - 5; x += 9) {
+              const F = this.iso(x, r.y - 2, 9 + Math.sin(this.time * 2 + x) * 0.6);
+              p.colorMode(p.HSB, 360, 100, 100);
+              p.noStroke(); p.fill(rng2() * 360, 74, 92);
+              p.colorMode(p.RGB, 255);
+              p.triangle(F[0], F[1], F[0] + 5 * this.scale, F[1], F[0] + 2.5 * this.scale, F[1] + 5 * this.scale);
+            }
+          },
+        });
       } else if (ev.kind === "trash_backlog") {
-        const rng = sbRng(sbHash("bags:" + b.id + this.day));
-        p.fill(40, 44, 40, 235);
-        for (let i = 0; i < 8; i++) p.circle(r.x + 8 + rng() * (r.w - 16), r.y + r.h + 14 + rng() * 8, 7);
+        const rng3 = sbRng(sbHash("bags:" + b.id + this.day));
+        for (let i = 0; i < 8; i++) {
+          const bx = r.x + 6 + rng3() * (r.w - 12), by = r.y + r.h + 4 + rng3() * 5;
+          items.push({
+            d: bx + by, f: () => {
+              const p = this.p;
+              const T = this.iso(bx, by, 1.4);
+              p.noStroke(); p.fill(46, 50, 46, 240);
+              p.ellipse(T[0], T[1] - 1.4 * this.scale, 5 * this.scale, 4.4 * this.scale);
+            },
+          });
+        }
       }
     });
   }
 
+  /* ----- agents ---------------------------------------------------------- */
+
+  collectWalkers(items) {
+    if (!this.frame) return;
+    this.walkers.forEach((wk) => {
+      const t = this.time * wk.speed + wk.phase;
+      const x = wk.px + Math.sin(t) * wk.range * 0.5;
+      const y = wk.py + Math.sin(t * 0.63) * 2;
+      items.push({ d: x + y, f: () => this.drawWalker(wk, x, y) });
+    });
+  }
+
+  drawWalker(wk, x, y) {
+    const p = this.p;
+    const row = this.blockRow[wk.block_id] || {};
+    const mood = row.average_mood == null ? 60 : row.average_mood;
+    const bob = Math.abs(Math.sin(this.time * 4 * wk.speed + wk.phase)) * 0.8;
+    const B = this.iso(x, y, 1.6 + bob);
+    p.noStroke();
+    // tiny contact shadow
+    const S = this.iso(x, y, 1.55);
+    p.fill(40, 40, 50, 60);
+    p.ellipse(S[0], S[1], 3.6 * this.scale, 1.8 * this.scale);
+    p.colorMode(p.HSB, 360, 100, 100);
+    p.fill(wk.hue, 52, 82);
+    p.ellipse(B[0], B[1] - 1.6 * this.scale, 3 * this.scale, 3.8 * this.scale); // body
+    p.fill(36, 34, 90);
+    p.circle(B[0], B[1] - 4.2 * this.scale, 2.2 * this.scale); // head
+    p.colorMode(p.RGB, 255);
+    if (wk.mode === "bike") {
+      p.fill(40);
+      p.circle(B[0] - 1.4 * this.scale, B[1], 1.6 * this.scale);
+      p.circle(B[0] + 1.4 * this.scale, B[1], 1.6 * this.scale);
+    }
+    // Occasional thought bubbles: sad cloud when unhappy, coin when thriving.
+    const cycle = (this.time + wk.bubblePhase) % 14;
+    if (wk.bubble && cycle < 2.4) {
+      const bx = B[0] + 3 * this.scale, by = B[1] - 8.5 * this.scale;
+      p.fill(255, 255, 255, 235);
+      p.ellipse(bx, by, 6.4 * this.scale, 5.2 * this.scale);
+      p.circle(bx - 2.4 * this.scale, by + 3.2 * this.scale, 1.4 * this.scale);
+      if (mood < 42) {
+        p.fill(120, 124, 136);
+        p.ellipse(bx, by, 3.4 * this.scale, 2.2 * this.scale);
+      } else if (mood > 68) {
+        p.fill(238, 190, 60);
+        p.circle(bx, by, 3 * this.scale);
+        p.fill(180, 130, 30);
+        p.textSize(Math.max(5, 2 * this.scale)); p.textAlign(p.CENTER, p.CENTER);
+        p.text("$", bx, by);
+      } else {
+        p.fill(200, 90, 90);
+        p.circle(bx, by, 2.6 * this.scale);
+      }
+    } else if (mood < 42 && !wk.bubble) {
+      p.fill(120, 120, 132, 170);
+      p.ellipse(B[0] + 1.6 * this.scale, B[1] - 7 * this.scale, 3.2 * this.scale, 2.2 * this.scale);
+    }
+  }
+
+  collectVehicles(items) {
+    const w = this.world;
+    const { v, h } = this.streetRects();
+    this.vehicles.forEach((veh) => {
+      const t = (this.time * veh.speed + veh.offset);
+      let x, y;
+      if (veh.horizontal && h.length) {
+        const band = h[veh.lane % h.length];
+        y = (band[0] + band[1]) / 2 + (veh.lane % 2 ? -7 : 7);
+        x = (t % (w.width + 60)) - 30;
+      } else if (v.length) {
+        const band = v[veh.lane % v.length];
+        x = (band[0] + band[1]) / 2 + (veh.lane % 2 ? -7 : 7);
+        y = (t % (w.height + 60)) - 30;
+      } else return;
+      if (x < -14 || x > w.width + 14 || y < -14 || y > w.height + 14) return;
+      items.push({ d: x + y, f: () => this.drawVehicle(veh, x, y) });
+    });
+  }
+
+  drawVehicle(veh, x, y) {
+    const p = this.p;
+    const len = veh.kind === "bus" ? 16 : 9;
+    const wid = veh.kind === "bus" ? 5.4 : 4.6;
+    const hgt = veh.kind === "bus" ? 5.2 : 3.4;
+    let rgb;
+    if (veh.kind === "bus") rgb = [56, 118, 188];
+    else if (veh.kind === "cab") rgb = [240, 190, 40];
+    else {
+      p.colorMode(p.HSB, 360, 100, 100);
+      const c = p.color(veh.hue, 36, 70);
+      rgb = [p.red(c), p.green(c), p.blue(c)];
+      p.colorMode(p.RGB, 255);
+    }
+    const bx = veh.horizontal ? x : x - wid / 2;
+    const by = veh.horizontal ? y - wid / 2 : y;
+    const bw = veh.horizontal ? len : wid;
+    const bh = veh.horizontal ? wid : len;
+    // contact shadow
+    const S = this.iso(bx + bw / 2, by + bh / 2, 0.05);
+    p.noStroke(); p.fill(40, 40, 50, 70);
+    p.ellipse(S[0], S[1], (bw + 3) * this.scale, (bh * 0.62) * this.scale);
+    this.box(bx, by, bw, bh, 0.2, 0.2 + hgt, rgb);
+    // cabin
+    this.box(bx + bw * 0.22, by + bh * 0.18, bw * 0.56, bh * 0.64, 0.2 + hgt, 0.2 + hgt + 2, [212, 228, 240]);
+  }
+
+  /* ----- atmosphere / labels / debug ------------------------------------ */
+
   drawSkyTint() {
-    const p = this.p, w = this.world;
+    const p = this.p;
     const events = (this.frame && this.frame.events) || [];
     const heat = events.find((e) => e.kind === "heat_wave");
     if (heat) {
-      p.fill(255, 130, 40, 26 + Math.sin(this.time * 2) * 10);
-      p.rect(0, 0, w.width, w.height);
+      p.noStroke();
+      p.fill(255, 140, 46, 30 + Math.sin(this.time * 2) * 10);
+      p.rect(0, 0, p.width, p.height);
+      // shimmering sun
+      p.fill(255, 214, 120, 220);
+      p.circle(p.width - 52, 46, 40 + Math.sin(this.time * 3) * 3);
     }
   }
 
   drawBlockLabel(b) {
     const p = this.p, r = b.rect;
-    p.fill(30, 30, 30, 200);
-    p.rect(r.x + 4, r.y + 4, Math.min(r.w - 8, b.name.length * 6.4 + 10), 13, 3);
-    p.fill(244, 238, 220);
+    // Floating sign above the block's front-left corner.
+    const A = this.iso(r.x + 2, r.y + r.h + 2, 0);
+    const wpx = Math.min(r.w * this.scale * 1.6, b.name.length * 6.4 + 12);
+    p.noStroke();
+    p.fill(52, 46, 40, 215);
+    p.rect(A[0], A[1] + 6, wpx, 14, 4);
+    p.fill(246, 240, 224);
     p.textSize(9); p.textAlign(p.LEFT, p.CENTER);
-    p.text(b.name, r.x + 9, r.y + 11);
+    p.text(b.name, A[0] + 6, A[1] + 13);
     const row = this.blockRow[b.id];
     if (row && row.average_mood != null) {
       const mood = row.average_mood;
       p.fill(mood > 60 ? p.color(96, 180, 90) : mood > 45 ? p.color(230, 190, 70) : p.color(210, 80, 70));
-      p.circle(r.x + Math.min(r.w - 8, b.name.length * 6.4 + 10) - 2, r.y + 10.5, 6);
+      p.circle(A[0] + wpx - 2, A[1] + 12, 6);
     }
   }
 
@@ -460,24 +833,34 @@ class CitySimRenderer {
     const p = this.p, w = this.world;
     p.push();
     p.textSize(8); p.textAlign(p.LEFT, p.TOP);
-    p.noFill(); p.stroke(255, 60, 60, 220); p.strokeWeight(1);
+    p.stroke(255, 60, 60, 220); p.strokeWeight(1); p.noFill();
     w.blocks.forEach((b) => {
-      p.rect(b.rect.x, b.rect.y, b.rect.w, b.rect.h);
+      const r = b.rect;
+      const A = this.iso(r.x, r.y, 0), B = this.iso(r.x + r.w, r.y, 0);
+      const C = this.iso(r.x + r.w, r.y + r.h, 0), D = this.iso(r.x, r.y + r.h, 0);
+      p.quad(A[0], A[1], B[0], B[1], C[0], C[1], D[0], D[1]);
       p.noStroke(); p.fill(255, 90, 90);
-      p.text(b.id + " (" + Math.round(b.rect.x) + "," + Math.round(b.rect.y) + ")", b.rect.x, b.rect.y - 10);
+      p.text(b.id + " (" + Math.round(r.x) + "," + Math.round(r.y) + ")", A[0], A[1] - 10);
       p.stroke(255, 60, 60, 220); p.noFill();
     });
     p.stroke(80, 170, 255, 200);
     w.buildings.forEach((b) => {
-      p.rect(b.rect.x, b.rect.y, b.rect.w, b.rect.h);
+      const r = b.rect;
+      const A = this.iso(r.x, r.y, 0), B = this.iso(r.x + r.w, r.y, 0);
+      const C = this.iso(r.x + r.w, r.y + r.h, 0), D = this.iso(r.x, r.y + r.h, 0);
+      p.quad(A[0], A[1], B[0], B[1], C[0], C[1], D[0], D[1]);
       p.noStroke(); p.fill(140, 200, 255);
-      p.text(b.id, b.rect.x + 1, b.rect.y + 1);
+      p.text(b.id, A[0] + 1, A[1] + 1);
       p.stroke(80, 170, 255, 200); p.noFill();
     });
-    // Walker paths and destinations
+    // Walker paths.
     p.stroke(120, 255, 120, 130);
-    this.walkers.forEach((wk) => p.line(wk.px - wk.range * 0.5, wk.py, wk.px + wk.range * 0.5, wk.py));
-    p.noStroke(); p.fill(255, 255, 120);
+    this.walkers.forEach((wk) => {
+      const A = this.iso(wk.px - wk.range * 0.5, wk.py, 0);
+      const B = this.iso(wk.px + wk.range * 0.5, wk.py, 0);
+      p.line(A[0], A[1], B[0], B[1]);
+    });
+    p.noStroke(); p.fill(60, 50, 40);
     p.textSize(11);
     p.text("FPS " + Math.round(p.frameRate()) + "  day " + this.day + "  scale " + this.scale.toFixed(2), 6, 4);
     p.pop();
@@ -486,7 +869,7 @@ class CitySimRenderer {
   pickHover() {
     if (!this.world || !this.opts.onHover) return;
     const p = this.p;
-    const mx = p.mouseX / this.scale, my = p.mouseY / this.scale;
+    const [mx, my] = this.unproject(p.mouseX, p.mouseY);
     let hit = null;
     this.world.buildings.forEach((b) => {
       const r = b.rect;
@@ -495,7 +878,7 @@ class CitySimRenderer {
     if (!hit) {
       this.world.blocks.forEach((b) => {
         const r = b.rect;
-        if (mx >= r.x - 10 && mx <= r.x + r.w + 10 && my >= r.y - 10 && my <= r.y + r.h + 10) {
+        if (mx >= r.x - 8 && mx <= r.x + r.w + 8 && my >= r.y - 8 && my <= r.y + r.h + 8) {
           hit = { kind: "block", obj: b };
         }
       });
