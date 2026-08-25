@@ -23,7 +23,7 @@ On connect the game sends a single `welcome` message:
   "starting_budget": 500000.0,
   "blocks": [{"block_id": "block_a", "name": "Marcy Row", "col": 0, "row": 0}, ...],
   "actions": [{"action": "increase_trash_pickup", "cost": 9000, "daily_upkeep": 220,
-               "description": "..."}, ...],
+               "target": "block", "summary": "..."}, ...],
   "inspect_targets": ["city", "block", "resident", "business", "transit", "housing"],
   "message_types": ["inspect", "action", "end_day"],
   "score_dimensions": ["resident_welfare", "affordability", ...],
