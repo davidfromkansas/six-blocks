@@ -83,12 +83,23 @@ for the visual debug overlay.
 
 ## Coworld build / certify / upload
 
+The `coworld` CLI is not a dependency of this project — it lives in a separate
+checkout of https://github.com/Metta-AI/coworld, so run it from there (`uv run
+coworld ...` from *this* repo has nothing to run). Docker must be running, and on
+Apple Silicon export `DOCKER_DEFAULT_PLATFORM=linux/amd64`.
+
 ```bash
-uv run coworld build          # builds the image from compose.yaml, hydrates the manifest
-uv run coworld certify coworld_manifest.json
-uv run coworld upload-coworld coworld_manifest.json
-uv run coworld run-episode <manifest-or-id>
+coworld build --version 0.4.0            # builds the image, writes dist/coworld_manifest.json
+coworld certify dist/coworld_manifest.json
+coworld upload-coworld dist/coworld_manifest.json   # needs `softmax login`
+coworld run-episode dist/coworld_manifest.json -o /tmp/ep
 ```
+
+`--version` is required and must be higher than the highest already uploaded —
+check with `coworld list` first, because the platform keeps every version and the
+canonical one is not necessarily the newest. Re-run `coworld build` after any
+source change: the manifest pins a content-addressed image tag, and a stale one
+fails with "image is not available locally or reachable remotely".
 
 ## Writing your own player
 
