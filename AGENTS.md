@@ -112,12 +112,25 @@ The Coworld CLI lives in a separate checkout of https://github.com/Metta-AI/cowo
 with a coworld-enabled venv:
 
 ```bash
-coworld build      # builds the Docker image from compose.yaml and hydrates
-                   # coworld_manifest_template.json into a manifest
-coworld certify <manifest.json>   # local smoke certification (must pass)
-coworld upload-coworld <manifest.json>  # requires `softmax login` auth
+coworld build --version <X.Y.Z>   # builds the Docker image from compose.yaml and
+                                  # hydrates coworld_manifest_template.json into
+                                  # dist/coworld_manifest.json
+coworld certify dist/coworld_manifest.json      # local certification (must pass)
+coworld upload-coworld dist/coworld_manifest.json   # requires `softmax login` auth
+coworld league create citysim <league-key> "<name>"  # promote it to a league
 ```
 
+- `--version` is required, and `coworld build` must be re-run after *any* source
+  change — the manifest pins a content-addressed image tag, and a stale one fails
+  with "image is not available locally or reachable remotely".
+- Check `coworld list` before choosing a version. The platform keeps every upload,
+  and the **canonical** version is the one leagues bind to — it is not necessarily
+  the newest. Canonical is set by the platform when hosted certification passes;
+  there is no CLI command to promote it.
+- On Apple Silicon export `DOCKER_DEFAULT_PLATFORM=linux/amd64` before running any
+  of this, or the CLI warns on every invocation.
+- A freshly created league schedules nothing until divisions are declared and
+  `ladder.enabled` is set — see the platform-ladder guide in the coworld checkout.
 - `compose.yaml` pins `linux/amd64`; keep it that way.
 - The manifest declares `game` and `player` roles only (no commissioner —
   platform-ladder Coworlds omit it).
